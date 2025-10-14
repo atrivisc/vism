@@ -1,0 +1,160 @@
+---
+logging:
+  directory: "./logs/"
+
+security:
+  chroot_base_dir: "/tmp/jail"
+  data_encryption:
+    enabled: true
+    password: "54v%$C@#66v452c2463bvu3C%$#^@CX"
+
+openssl:
+  uid: 1001
+  gid: 1001
+  bin: "/usr/bin/openssl"
+  ca_profiles:
+    - name: "root"
+      cert_extensions:
+        - name: "self_sign"
+          basicConstraints: "critical,CA:TRUE,pathlen:1"
+          keyUsage: "critical,keyCertSign,cRLSign"
+          extendedKeyUsage: ""
+          authorityKeyIdentifier: "keyid:always,issuer"
+          subjectKeyIdentifier: "hash"
+          crlDistributionPoints: "@crl_info"
+        - name: "sub_ca_ext"
+          authorityInfoAccess: "@aia_root"
+          crlDistributionPoints: "@crl_info"
+      authority_info_access_extensions:
+        - name: "aia_root"
+          caIssuersURIs:
+            - "https://ca.saarts.lan/public/$ca.crt"
+      crl_extensions:
+        - name: "root_crl"
+          authorityKeyIdentifier: "keyid:always"
+      crl_distribution_points:
+        - name: "crl_info"
+          URIs:
+            - "https://ca.saarts.lan/public/$ca.crl"
+      match_policies:
+        - name: "sub_ca_policy"
+      distinguished_name_extensions:
+        - name: "root_ca_dn"
+          countryName: "EE"
+          stateOrProvinceName: ""
+          localityName: ""
+          organizationName: ""
+          organizationalUnitName: ""
+          commonName: "Root CA"
+      default_ca:
+        default_days: "3650"
+        policy: "sub_ca_policy"
+        copy_extensions: "copy"
+        default_crl_days: "7"
+        x509_extensions: "sub_ca_ext"
+        crl_extensions: "root_crl"
+        rand_serial: "yes"
+        unique_subject: "no"
+        default_md: "sha3-512"
+        email_in_dn: "no"
+        preserve: "no"
+        name_opt: "ca_default"
+        cert_opt: "ca_default"
+        utf8: "yes"
+      req:
+        encrypt_key: "no"
+        distinguished_name: "root_ca_dn"
+        x509_extensions: "self_sign"
+        req_extensions: "self_sign"
+        default_md: "sha3-512"
+        utf8: "yes"
+        prompt: "no"
+    - name: "service_ca"
+      cert_extensions:
+        - name: "ca"
+          basicConstraints: "critical,CA:TRUE,pathlen:0"
+          keyUsage: "critical,keyCertSign,cRLSign"
+          extendedKeyUsage: ""
+          authorityKeyIdentifier: "keyid:always,issuer"
+          subjectKeyIdentifier: "hash"
+          authorityInfoAccess: "@aia_root"
+          crlDistributionPoints: "@crl_info"
+        - name: "sub_ca_ext"
+          authorityInfoAccess: "@aia"
+          crlDistributionPoints: "@crl_info"
+      authority_info_access_extensions:
+        - name: "aia_root"
+          caIssuersURIs:
+            - "https://ca.saarts.lan/public/root_ca.crt"
+        - name: "aia"
+          caIssuersURIs:
+            - "https://ca.saarts.lan/public/$ca.crt"
+      crl_extensions:
+        - name: "crl"
+          authorityKeyIdentifier: "keyid:always"
+      crl_distribution_points:
+        - name: "crl_info"
+          URIs:
+            - "https://ca.saarts.lan/public/$ca.crl"
+      match_policies:
+        - name: "sub_ca_policy"
+      distinguished_name_extensions:
+        - name: "ca_dn"
+          countryName: "EE"
+          stateOrProvinceName: ""
+          localityName: ""
+          organizationName: ""
+          organizationalUnitName: ""
+          commonName: "Service CA"
+      default_ca:
+        default_days: "3650"
+        policy: "sub_ca_policy"
+        copy_extensions: "copy"
+        default_crl_days: "7"
+        x509_extensions: "sub_ca_ext"
+        crl_extensions: "crl"
+        rand_serial: "yes"
+        unique_subject: "no"
+        default_md: "sha3-512"
+        email_in_dn: "no"
+        preserve: "no"
+        name_opt: "ca_default"
+        cert_opt: "ca_default"
+        utf8: "yes"
+      req:
+        encrypt_key: "no"
+        distinguished_name: "ca_dn"
+        x509_extensions: "ca"
+        req_extensions: "ca"
+        default_md: "sha3-512"
+        utf8: "yes"
+        prompt: "no"
+database:
+  host: 127.0.0.1
+  port: 5432
+  database: 'vism'
+  username: 'vism'
+  password: 'vism'
+
+x509_certificates:
+  - name: "root_ca"
+    module: "openssl"
+    module_args:
+      profile: "root"
+      cn: "Root CA"
+      extension: "self_sign"
+      key:
+        password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
+        algorithm: "RSA"
+        bits: 4096
+  - name: 'service_ca'
+    signed_by: 'root_ca'
+    module: "openssl"
+    module_args:
+      profile: "service_ca"
+      cn: "Service CA"
+      extension: "ca"
+      key:
+        password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
+        algorithm: "RSA"
+        bits: 4096

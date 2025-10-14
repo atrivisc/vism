@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:17
+    container_name: vism_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: vism
+      POSTGRES_PASSWORD: vism
+      POSTGRES_DB: vism
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vism -d vism"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+    driver: local

@@ -1,0 +1,127 @@
+[ default ]
+ca                      = {{ certificate.name }}
+dir                     = /tmp/{{ certificate.name }}
+
+[ req ]
+{% if ca_profile.req.encrypt_key %}
+encrypt_key             = {{ ca_profile.req.encrypt_key }}
+{% endif %}
+{% if ca_profile.req.default_md %}
+default_md              = {{ ca_profile.req.default_md }}
+{% endif %}
+{% if ca_profile.req.utf8 %}
+utf8                    = {{ ca_profile.req.utf8 }}
+{% endif %}
+{% if ca_profile.req.prompt %}
+prompt                  = {{ ca_profile.req.prompt }}
+{% endif %}
+{% if ca_profile.req.distinguished_name %}
+distinguished_name      = {{ ca_profile.req.distinguished_name }}
+{% endif %}
+{% if ca_profile.req.x509_extensions %}
+x509_extensions         = {{ ca_profile.req.x509_extensions }}
+{% endif %}
+{% if ca_profile.req.req_extensions %}
+req_extensions          = {{ ca_profile.req.req_extensions }}
+{% endif %}
+
+{% for ext in ca_profile.distinguished_name_extensions %}
+[ {{ ext.name }} ]
+{% if ext.countryName %}
+countryName        = {{ ext.countryName }}
+{% endif %}
+{% if ext.stateOrProvinceName %}
+stateOrProvinceName                = {{ ext.stateOrProvinceName }}
+{% endif %}
+{% if ext.localityName %}
+localityName        = {{ ext.localityName }}
+{% endif %}
+{% if ext.organizationName %}
+organizationName    = {{ ext.organizationName }}
+{% endif %}
+{% if ext.organizationalUnitName %}
+organizationalUnitName     = {{ ext.organizationalUnitName }}
+{% endif %}
+{% if ext.commonName %}
+commonName   = {{ ext.commonName }}
+{% endif %}
+{% endfor %}
+
+{% for ext in ca_profile.cert_extensions %}
+[ {{ ext.name }} ]
+{% if ext.basicConstraints %}
+basicConstraints        = {{ ext.basicConstraints }}
+{% endif %}
+{% if ext.keyUsage %}
+keyUsage                = {{ ext.keyUsage }}
+{% endif %}
+{% if ext.extendedKeyUsage %}
+extendedKeyUsage        = {{ ext.extendedKeyUsage }}
+{% endif %}
+{% if ext.subjectKeyIdentifier %}
+subjectKeyIdentifier    = {{ ext.subjectKeyIdentifier }}
+{% endif %}
+{% if ext.authorityInfoAccess %}
+authorityInfoAccess     = {{ ext.authorityInfoAccess }}
+{% endif %}
+{% if ext.crlDistributionPoints %}
+crlDistributionPoints   = {{ ext.crlDistributionPoints }}
+{% endif %}
+{% endfor %}
+
+[ ca ]
+default_ca              = {{ certificate.name }}
+
+[ {{ certificate.name }} ]
+certs           = $dir/certs
+crl_dir         = $dir/crl
+database        = $dir/$ca.db
+new_certs_dir   = $dir/certs
+certificate     = $dir/$ca.crt
+serial          = $dir/serial
+crlnumber       = $dir/crlnumber
+crl             = $dir/$ca.crl
+private_key     = $dir/$ca.key
+rand_serial             = {{ ca_profile.default_ca.rand_serial }}
+unique_subject          = {{ ca_profile.default_ca.unique_subject }}
+default_days            = {{ ca_profile.default_ca.default_days }}
+default_md              = {{ ca_profile.default_ca.default_md }}
+policy                  = {{ ca_profile.default_ca.policy }}
+email_in_dn             = {{ ca_profile.default_ca.email_in_dn }}
+preserve                = {{ ca_profile.default_ca.preserve }}
+cert_opt                = {{ ca_profile.default_ca.cert_opt }}
+copy_extensions         = {{ ca_profile.default_ca.copy_extensions }}
+default_crl_days        = {{ ca_profile.default_ca.default_crl_days }}
+x509_extensions         = {{ ca_profile.default_ca.x509_extensions }}
+crl_extensions          = {{ ca_profile.default_ca.crl_extensions }}
+utf8                    = {{ ca_profile.default_ca.utf8 }}
+
+{% for ext in ca_profile.authority_info_access_extensions | default([]) %}
+[ {{ ext.name }} ]
+{% for uri in ext.caIssuersURIs | default([]) %}
+caIssuers;URI.{{ loop.index0 }} = {{ uri }}
+{% endfor %}
+{% endfor %}
+
+{% for ext in ca_profile.crl_extensions | default([]) %}
+[ {{ ext.name }} ]
+authorityKeyIdentifier  = {{ ext.authorityKeyIdentifier }}
+authorityInfoAccess     = {{ ext.authorityInfoAccess }}
+{% endfor %}
+
+{% for ext in ca_profile.crl_distribution_points | default([]) %}
+[ {{ ext.name }} ]
+{% for uri in ext.URIs | default([]) %}
+URI.{{ loop.index0 }} = {{ uri }}
+{% endfor %}
+{% endfor %}
+
+{% for ext in ca_profile.match_policies | default([]) %}
+[ {{ ext.name }} ]
+countryName             = {{ ext.countryName }}
+stateOrProvinceName     = {{ ext.stateOrProvinceName }}
+localityName            = {{ ext.localityName }}
+organizationName        = {{ ext.organizationName }}
+organizationalUnitName  = {{ ext.organizationalUnitName }}
+commonName              = {{ ext.commonName }}
+{% endfor %}
