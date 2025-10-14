@@ -75,13 +75,15 @@ crlDistributionPoints   = {{ ext.crlDistributionPoints }}
 default_ca              = {{ certificate.name }}
 
 [ {{ certificate.name }} ]
-certificate     = $dir/$ca.crt
-private_key     = $dir/$ca.key
-crl             = $dir/$ca.crl
+certs           = $dir/certs
+crl_dir         = $dir/crl
 database        = $dir/$ca.db
 new_certs_dir   = $dir/certs
+certificate     = $dir/$ca.crt
 serial          = $dir/serial
 crlnumber       = $dir/crlnumber
+crl             = $dir/$ca.crl
+private_key     = $dir/$ca.key
 rand_serial             = {{ ca_profile.default_ca.rand_serial }}
 unique_subject          = {{ ca_profile.default_ca.unique_subject }}
 default_days            = {{ ca_profile.default_ca.default_days }}
