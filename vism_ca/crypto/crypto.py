@@ -5,9 +5,8 @@ from dataclasses import dataclass
 from subprocess import CompletedProcess
 from typing import Optional
 
-from vism_ca.db.database import Certificate
+from vism_ca.config import CertificateConfig
 from vism_ca.util.errors import ChrootWriteFileExists, ChrootWriteToFileException, ChrootOpenFileException
-from vism_ca.x509.certificate import CertificateConfig
 
 
 @dataclass

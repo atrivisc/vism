@@ -72,13 +72,14 @@ class VismDatabase:
 
     @classmethod
     def create_module_tables(cls, module: ModuleData):
-        VismDatabase.mapper_registry.mapped(module)
-        VismDatabase.mapper_registry.metadata.create_all(VismDatabase.engine)
+        mapper_registry = registry()
+        mapper_registry.mapped(module)
+        mapper_registry.metadata.create_all(cls.engine)
 
     @classmethod
     def create_tables(cls):
         VismDatabase.mapper_registry.mapped(Certificate)
-        VismDatabase.mapper_registry.metadata.create_all(VismDatabase.engine)
+        VismDatabase.mapper_registry.metadata.create_all(cls.engine)
 
     @classmethod
     @contextmanager

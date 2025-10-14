@@ -2,10 +2,9 @@ import logging
 import logging.config
 import sys
 from argparse import Namespace
-from vism_ca.config import Config
+from vism_ca.config import Config, CertificateConfig
 from vism_ca.crypto.crypto import Crypto
 from vism_ca.db.database import Certificate, VismDatabase
-from vism_ca.x509.certificate import CertificateConfig
 
 
 class VismCA:

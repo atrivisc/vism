@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+from vism_ca.config import ModuleArgsConfig
 from vism_ca.crypto.crypto import CryptoConfig
-from vism_ca.x509.certificate import ModuleArgsConfig
 
 
 @dataclass

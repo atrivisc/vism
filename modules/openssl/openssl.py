@@ -9,10 +9,10 @@ from cryptography.hazmat.primitives import serialization
 
 from modules.openssl.config import OpenSSLConfig, CAProfile, OpenSSLKeyConfig, OpenSSLModuleArgs
 from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound
+from vism_ca.config import CertificateConfig
 from vism_ca.db.database import Certificate
 from vism_ca.util.errors import GenCertException, GenCSRException
-from vism_ca.util.linux_lib import get_needed_libraries
-from vism_ca.x509.certificate import CertificateConfig
+from vism_ca.util.util import get_needed_libraries
 from jinja2 import Template, StrictUndefined
 from vism_ca.crypto.crypto import Crypto
 

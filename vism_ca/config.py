@@ -4,8 +4,6 @@ from typing import Optional
 import yaml
 import logging
 
-from vism_ca.x509.certificate import CertificateConfig
-
 logger = logging.getLogger(__name__)
 
 @dataclass
@@ -35,19 +33,24 @@ class Logging:
     level: str = "INFO"
     verbose: bool = False
 
-def load_dataclass(obj):
-    parsed_data = {}
+@dataclass
+class ModuleArgsConfig:
+    pass
 
-    if hasattr(obj, "__dataclass_fields__"):
-        for field in fields(obj):
-            value = getattr(obj, field.name)
-            if hasattr(value, "__dataclass_fields__"):  # If the value is a dataclass, recursively parse it
-                parsed_data[field.name] = load_dataclass(value)
-            else:
-                parsed_data[field.name] = value
+@dataclass
+class CertificateConfig:
+    name: str
+    module: str = None
+    module_args: ModuleArgsConfig = None
+    signed_by: str = None
 
-    return parsed_data
+    externally_managed: bool = False
+    certificate_pem: str = None
+    crl_pem: str = None
 
+    def __post_init__(self):
+        module_import = __import__(f'modules.{self.module}', fromlist=['ModuleArgsConfig'])
+        self.module_args = module_import.ModuleArgsConfig(**self.module_args)
 
 class Config:
     def __init__(self, config_file):
