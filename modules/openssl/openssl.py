@@ -11,9 +11,7 @@ from modules import module_logger
 from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs
 from modules.openssl.db import OpenSSLData
 from shared.util import get_needed_libraries
-from vism_ca.ca.db import VismCADatabase
-from vism_ca.config import CertificateConfig
-from vism_ca.ca.crypto import CryptoModule
+from vism_ca import VismCADatabase, CertificateConfig, CryptoModule
 from vism_ca.errors import GenCertException, GenCSRException, GenPKEYException, GenCRLException
 from jinja2 import Template, StrictUndefined
 
@@ -28,6 +26,7 @@ class OpenSSL(CryptoModule):
     moduleArgsClass: OpenSSLModuleArgs = OpenSSLModuleArgs
 
     def __init__(self, chroot_dir: str, database: VismCADatabase):
+        module_logger.debug(f"Initializing OpenSSL module")
         self.config: Optional[OpenSSLConfig] = None
         self.database = database
         super().__init__(chroot_dir)
@@ -98,7 +97,7 @@ class OpenSSL(CryptoModule):
         return openssl_data
 
     def create_chroot_environment(self):
-        module_logger.info("Generating chroot environment for openssl module."),
+        module_logger.debug("Generating chroot environment for openssl module."),
         libraries = get_needed_libraries(self.openssl_path)
         self.chroot.create_folder("/tmp")
 
@@ -158,7 +157,7 @@ class OpenSSL(CryptoModule):
         return output.stdout
 
     def generate_private_key(self, cert_config: OpenSSLCertConfig) -> tuple[str, str]:
-        module_logger.info(f"Generating private key for '{cert_config.name} 'with password."),
+        module_logger.info(f"Generating private key for '{cert_config.name}'."),
         self._create_crt_environment(cert_config)
 
         key_config = cert_config.module_args.key

@@ -8,6 +8,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
+from starlette.requests import Request
+
 
 def is_valid_ip(ip_str):
     try:
@@ -106,3 +108,24 @@ def snake_to_camel(name):
 def camel_to_snake(name):
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
+
+def absolute_url(request: Request, path: str) -> str:
+    base = str(request.base_url).rstrip("/")
+    if not path.startswith("/"):
+        path = "/" + path
+    return f"{base}{path}"
+
+def get_client_ip(request: Request):
+    x_forwarded_for = request.headers.get("X-Forwarded-For")
+    if x_forwarded_for:
+        ip = x_forwarded_for.split(",")[0].strip()
+    else:
+        ip = request.client.host
+    return ip
+
+
+def fix_base64_padding(base64_string):
+    padding_needed = len(base64_string) % 4
+    if padding_needed != 0:
+        base64_string += "=" * (4 - padding_needed)
+    return base64_string

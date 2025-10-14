@@ -1,10 +1,9 @@
 import argparse
-import asyncio
 import logging
 from typing import Any, Optional
-
 import uvicorn
 
+import vism_ca
 
 logger = logging.getLogger("cli")
 
@@ -42,8 +41,7 @@ def main() -> Optional[Any]:
 
     if args.component == 'ca':
         if args.ca_command == 'start':
-            from vism_ca import main
-            main()
+            vism_ca.main()
 
     if args.component == 'acme':
         if args.acme_command == 'start':

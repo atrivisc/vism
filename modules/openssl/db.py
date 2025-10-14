@@ -3,7 +3,7 @@ from typing import Optional
 from sqlalchemy import String, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
 from shared.db import Base
-from vism_ca.ca.db import ModuleData
+from vism_ca import ModuleData
 
 
 class OpenSSLData(ModuleData, Base):

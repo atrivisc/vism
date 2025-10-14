@@ -5,15 +5,12 @@ from requests.exceptions import RequestException, TooManyRedirects, ChunkedEncod
     RetryError, SSLError, ProxyError, ConnectTimeout, ConnectionError, Timeout
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
-from vism_acme import VismACMEController, ErrorEntity
-from vism_acme.config import acme_logger
-from vism_acme.db import ChallengeEntity
-from vism_acme.db.authz import AuthzStatus, ChallengeStatus
-from vism_acme.db.order import OrderStatus
+from vism_acme import acme_logger
+from vism_acme.db import ChallengeEntity, ChallengeStatus, AuthzStatus, OrderStatus, ErrorEntity
 
 
 class Http01Validator:
-    def __init__(self, controller: VismACMEController, challenge: ChallengeEntity):
+    def __init__(self, controller, challenge: ChallengeEntity):
         self.controller = controller
         self.challenge = challenge
 
@@ -66,30 +63,39 @@ class Http01Validator:
             except (ConnectionError, NewConnectionError) as e:
                 error = "connection"
                 error_detail = f"Failed to connect to {validation_url}: {e.args[0].reason._message}"
+                acme_logger.exception(e)
             except (Timeout, ConnectTimeout, ReadTimeout) as e:
                 error = "connection"
                 error_detail = f"Timed out waiting for response, this is most likely due to a firewall blocking the request."
+                acme_logger.exception(e)
             except TooManyRedirects as e:
                 error = "connection"
                 error_detail = f"Too many redirects when trying to validate challenge."
+                acme_logger.exception(e)
             except (ChunkedEncodingError, ContentDecodingError) as e:
                 error = "incorrectResponse"
                 error_detail = f"Failed to decode response from {validation_url}: {e.args[0].reason._message}"
+                acme_logger.exception(e)
             except RetryError as e:
                 error = "connection"
                 error_detail = f"Max retries exceeded when trying to validate challenge."
+                acme_logger.exception(e)
             except SSLError as e:
                 error = "connection"
                 error_detail = f"SSL error when trying to validate challenge: {e.args[0].reason._message}"
+                acme_logger.exception(e)
             except ProxyError as e:
                 error = "connection"
                 error_detail = f"Proxy error when trying to validate challenge: {e.args[0].reason._message}"
+                acme_logger.exception(e)
             except MaxRetryError as e:
                 error = "connection"
                 error_detail = f"Max retries exceeded when trying to validate challenge."
+                acme_logger.exception(e)
             except (RequestException, Exception) as e:
                 error = "connection"
                 error_detail = f"Unknown error when trying to validate challenge: {e.__class__.__name__}: {e}"
+                acme_logger.exception(e)
 
         if error:
             self.challenge.status = ChallengeStatus.INVALID

@@ -5,12 +5,14 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from shared.db import Base
+from shared.util import absolute_url
 from .order import OrderEntity
 from enum import Enum
-from vism_acme.util import absolute_url
-from vism_acme.util.enum import IdentifierType
 from .error import ErrorEntity
 
+class IdentifierType(str, Enum):
+    DNS = "dns"
+    IP = "ip"
 
 class AuthzStatus(str, Enum):
     PENDING = "pending"

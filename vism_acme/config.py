@@ -9,12 +9,10 @@ from cryptography.x509 import CertificateSigningRequest
 from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 from typing import Optional
-
 from shared.config import Config
 from shared.db import Database
-from shared.util import is_valid_subnet, snake_to_camel
-from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.util import fix_base64_padding
+from shared.util import is_valid_subnet, snake_to_camel, fix_base64_padding
+from vism_acme import ACMEProblemResponse
 
 logger = logging.getLogger(__name__)
 

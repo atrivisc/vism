@@ -3,6 +3,8 @@ from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
 
+from shared import shared_logger
+
 
 @dataclass
 class DataExchangeConfig:
@@ -54,6 +56,7 @@ class DataExchange(metaclass=ABCMeta):
     config_path: str = None
 
     def __init__(self, controller):
+        shared_logger.info(f"Initializing DataExchange module: {self.__class__.__name__}")
         self.controller = controller
         self.raw_config: Optional[dict] = None
         self.config: Optional[DataExchangeConfig] = None
@@ -62,7 +65,6 @@ class DataExchange(metaclass=ABCMeta):
         self.raw_config = config_data
         self.config = self.configClass(**config_data.get(self.config_path, {}))
 
-    @abstractmethod
     async def cleanup(self, full: bool = False):
         pass
 

@@ -5,7 +5,6 @@ import sys
 
 from pydantic.dataclasses import dataclass
 
-
 @dataclass
 class LoggingConfig:
     log_root: str
@@ -77,6 +76,16 @@ def setup_logger(config: LoggingConfig):
                 'format': '%(asctime)s [%(levelname)-8s] %(message)s',
                 'datefmt': '%Y-%m-%d %H:%M:%S',
             },
+            'verbose_error': {
+                '()': ColoredFormatter,
+                'format': '%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s',
+                'datefmt': '%Y-%m-%d %H:%M:%S',
+            },
+            'simple_error': {
+                '()': ColoredFormatter,
+                'format': '%(asctime)s [%(levelname)-8s] %(message)s',
+                'datefmt': '%Y-%m-%d %H:%M:%S',
+            },
         },
         'handlers': {
             'file': {
@@ -87,60 +96,62 @@ def setup_logger(config: LoggingConfig):
                 'encoding': 'utf8',
                 'filters': ['sensitive_data', 'info_debug_only']
             },
-            "uvicorn": {
+            "stdout_info_debug_only": {
+                "level": "INFO",
+                "class": "logging.StreamHandler",
+                "formatter": 'simple' if not config.verbose else 'verbose',
+                "stream": sys.stdout,
+                'filters': ['sensitive_data', 'info_debug_only']
+            },
+            "stdout": {
                 "level": "INFO",
                 "class": "logging.StreamHandler",
                 "formatter": 'simple' if not config.verbose else 'verbose',
                 "stream": sys.stdout,
             },
-            "uvicorn_error": {
-                "level": "INFO",
+            "stderr": {
+                "level": "ERROR",
                 "class": "logging.StreamHandler",
-                "formatter": 'simple' if not config.verbose else 'verbose',
+                "formatter": 'simple_error' if not config.verbose else 'verbose_error',
                 "stream": sys.stderr,
             },
             'error_file': {
                 'level': f"ERROR",
                 'class': 'logging.FileHandler',
-                'formatter': 'simple' if not config.verbose else 'verbose',
+                'formatter': 'simple_error' if not config.verbose else 'verbose_error',
                 'filename': f'{config.log_dir.rstrip("/")}/{config.error_file}',
                 'encoding': 'utf8',
                 'filters': ['sensitive_data']
             },
         },
         'loggers': {
-            "aio_pika": {
-                "level": "DEBUG",
-                "handlers": ["uvicorn"],
-                "propagate": True,
-            },
             f'{config.log_root}': {
                 'level': config.log_level,
-                'handlers': ['file', 'error_file'],
+                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
                 "propagate": False,
             },
-            'shared': {
+            'vism_shared': {
                 'level': config.log_level,
-                'handlers': ['file', 'error_file'],
+                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
                 "propagate": False,
             },
-            'module': {
+            'vism_module': {
                 'level': config.log_level,
-                'handlers': ['file', 'error_file'],
+                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
                 "propagate": False,
             },
             "uvicorn": {
-                "handlers": ["uvicorn"],
+                "handlers": ["stdout"],
                 "level": "INFO",
                 "propagate": False,
             },
             "uvicorn.error": {
-                "handlers": ["uvicorn_error"],
+                "handlers": ["stderr"],
                 "level": "INFO",
                 "propagate": False,
             },
             "uvicorn.access": {
-                "handlers": ["uvicorn"],
+                "handlers": ["stdout"],
                 "level": "INFO",
                 "propagate": False,
             },
@@ -148,4 +159,4 @@ def setup_logger(config: LoggingConfig):
     }
 
     logging.config.dictConfig(logging_config)
-    logging.debug("Logging is set up and ready")
+    logging.info("Logging is set up and ready")

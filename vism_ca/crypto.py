@@ -1,13 +1,15 @@
 from dataclasses import dataclass
 from typing import Optional
-
-from shared.logs import SensitiveDataFilter
-from vism_ca.config import CertificateConfig, ModuleArgsConfig, ca_logger
 from shared.chroot import Chroot
+from shared.config import ModuleArgsConfig
+from shared.logs import SensitiveDataFilter
+from vism_ca import CertificateConfig, ca_logger
+
 
 @dataclass
 class CryptoConfig:
     pass
+
 
 class CryptoModule:
     config_path: str

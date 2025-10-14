@@ -3,11 +3,11 @@ import secrets
 from fastapi import APIRouter
 from starlette.responses import JSONResponse
 
+from shared.util import absolute_url
+from vism_acme import ACMEProblemResponse
 from vism_acme.db import AccountEntity, JWKEntity
-from vism_acme import VismACMEController
+from vism_acme.acme import VismACMEController
 from vism_acme.routers import AcmeRequest
-from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.util import absolute_url
 
 
 class AccountRouter:

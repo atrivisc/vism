@@ -48,7 +48,7 @@ pkcs11:
 
 logging:
   directory: "./logs/"
-  log_level: "DEBUG"
+  log_level: "INFO"
   log_root: "vism_acme"
 
 vism_acme:

@@ -1,12 +1,9 @@
-import logging
 import yaml
 from typing import Optional, Any
 from pydantic.dataclasses import dataclass
 
-from shared import logs
+from shared import logs, shared_logger
 from shared.logs import LoggingConfig
-
-shared_logger = logging.getLogger("shared")
 
 @dataclass
 class DataValidation:
@@ -33,6 +30,7 @@ class DataExchange:
 class Config:
     log_conf = {}
     conf_path: str = ""
+
     def __init__(self, config_file_path: str):
         self.config_file_path = config_file_path
         self.raw_config_data: Optional[dict] = self.read_config_file()
@@ -43,14 +41,15 @@ class Config:
         self.data_exchange = DataExchange(**path_conf.get("data_exchange", {}))
 
     def setup_logging(self):
+        shared_logger.info("Setting up logging")
         logs.setup_logger(
             LoggingConfig(**dict(self.log_conf, **self.raw_config_data.get("logging", {})))
         )
 
     def read_config_file(self) -> dict[str, Any]:
+        shared_logger.info(f"Reading config file from {self.config_file_path}")
         with open(self.config_file_path, 'r') as file:
             return yaml.safe_load(file)
 
-@dataclass
 class ModuleArgsConfig:
     pass

@@ -3,8 +3,8 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound
-from vism_ca.config import ModuleArgsConfig
-from vism_ca.ca.crypto import CryptoConfig
+from vism_ca import ModuleArgsConfig
+from vism_ca import CryptoConfig
 
 
 @dataclass

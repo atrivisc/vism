@@ -1,27 +1,25 @@
 import logging
 from dataclasses import dataclass
-from typing import Optional
-
 from shared.config import ModuleArgsConfig, Config
-from vism_ca.errors import CertConfigNotFound
+from vism_ca import CertConfigNotFound
 
 logger = logging.getLogger(__name__)
 
 @dataclass
 class Database:
-    host: str = ""
-    port: int = 3306
-    database: str = ""
-    username: str = ""
-    password: str = ""
+    host: str
+    port: int
+    database: str
+    username: str
+    password: str
 
 @dataclass
 class CertificateConfig:
     name: str
-    module: str = None
-    module_args: ModuleArgsConfig = None
-    signed_by: str = None
+    module: str
+    module_args: ModuleArgsConfig
 
+    signed_by: str = None
     externally_managed: bool = False
     certificate_pem: str = None
     crl_pem: str = None
@@ -29,11 +27,6 @@ class CertificateConfig:
     def __post_init__(self):
         module_import = __import__(f'modules.{self.module}', fromlist=['ModuleArgsConfig'])
         self.module_args = module_import.ModuleArgsConfig(**self.module_args)
-
-@dataclass
-class API:
-    host: str = "0.0.0.0"
-    port: int = 8080
 
 ca_logger = logging.getLogger("vism_ca")
 
@@ -47,10 +40,9 @@ class CAConfig(Config):
     def __init__(self, config_file_path: str):
         super().__init__(config_file_path)
 
-        ca_config = self.raw_config_data.get("vism_ca", {})
+        ca_config = self.raw_config_data.get(self.conf_path, {})
         self.database = Database(**ca_config.get("database", {}))
-        self.api: Optional[API] = API(**ca_config.get("api", {}))
-        self.x509_certificates = [CertificateConfig(**cert) for cert in ca_config.get("x509_certificates", [])]
+        self.x509_certificates: list[CertificateConfig] = [CertificateConfig(**cert) for cert in ca_config.get("x509_certificates", [])]
 
     def get_cert_config_by_name(self, cert_name: str) -> CertificateConfig:
         cert_configs = list(filter(lambda conf: conf.name == cert_name, self.x509_certificates))

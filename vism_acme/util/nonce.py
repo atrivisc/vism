@@ -1,7 +1,7 @@
 import secrets
 import asyncio
 from cachetools import TTLCache
-from vism_acme.config import AcmeConfig, acme_logger
+from vism_acme import AcmeConfig, acme_logger
 
 
 class NonceManager:

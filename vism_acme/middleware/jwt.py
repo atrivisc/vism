@@ -8,8 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 
 from shared.util import b64u_decode
-from vism_acme.middleware.acme_request import AcmeProtectedPayload, AcmeProtectedHeader
-from vism_acme.schema.response import ACMEProblemResponse
+from vism_acme import ACMEProblemResponse
+from vism_acme.middleware import AcmeProtectedPayload, AcmeProtectedHeader
 
 logger = logging.getLogger(__name__)
 

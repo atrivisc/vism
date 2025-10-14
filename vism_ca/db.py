@@ -1,6 +1,6 @@
 from datetime import datetime
 from typing import Optional
-from sqlalchemy import Integer, String, Text, Boolean, DateTime, func
+from sqlalchemy import String, Text, Boolean, DateTime, func
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from shared.db import Base, VismDatabase

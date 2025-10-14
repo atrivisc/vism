@@ -74,7 +74,6 @@ class Chroot:
             os.remove(real_path)
 
     def run_command(self, command: str, stdin: str = None, environment: dict = None) -> subprocess.CompletedProcess:
-        print(command)
         shared_logger.debug(f"Running command: {command}")
         result = subprocess.run(
             self.unshare_cmd + command.split(" "),

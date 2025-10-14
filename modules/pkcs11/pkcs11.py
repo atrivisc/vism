@@ -1,29 +1,21 @@
 import base64
-import hashlib
 import logging
 import os
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Union
-from uuid import uuid4
-
-from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import ec
-from cryptography.hazmat.primitives.asymmetric.ec import ECDSA, ECDH
 from cryptography.hazmat.primitives.asymmetric.types import PublicKeyTypes
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM, AESCCM
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.hashes import HashAlgorithm
-
 from modules import module_logger
 from modules.pkcs11.config import PKCS11Config, SignatureAlgorithmsName, HashingAlgorithmsName, PKCS11KeyConfig
-from modules.pkcs11.errors import PKCS11FailedToSignData, PKCS11FailedToVerifySignature, PKCS11KeyNotFound, \
-    PKCS11FailedToGetPublicKey, \
-    PKCS11FailedToEncryptData, PKCS11FailedToDecryptData, PKCS11Error
+from modules.pkcs11.errors import PKCS11FailedToSignData, PKCS11FailedToVerifySignature, PKCS11KeyNotFound, PKCS11FailedToGetPublicKey, PKCS11FailedToEncryptData, PKCS11Error
 from shared.chroot import Chroot
 from shared.data.validation import Data
+from shared.errors import VismException
 from shared.util import get_needed_libraries
 from cryptography.hazmat.primitives.asymmetric import utils as asymmetric_crypto_utils
 
@@ -159,24 +151,24 @@ class PKCS11Key:
         digest = hash_alg.finalize()
         return digest
 
-    def encrypt(self, data: bytes, encryption_algorithm: Union[ECDH]):
-        if isinstance(encryption_algorithm, ECDH):
+    def encrypt(self, data: bytes, encryption_algorithm: Union[ec.ECDH]):
+        if isinstance(encryption_algorithm, ec.ECDH):
             public_key_der = self.public_key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
             return self.encrypt_for_peer(data, encryption_algorithm, public_key_der)
         else:
             raise PKCS11Error(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
-    def decrypt(self, data: bytes, encryption_algorithm: Union[ECDH]):
-        if isinstance(encryption_algorithm, ECDH):
+    def decrypt(self, data: bytes, encryption_algorithm: Union[ec.ECDH]):
+        if isinstance(encryption_algorithm, ec.ECDH):
             public_key_der = self.public_key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
             return self.decrypt_for_peer(data, encryption_algorithm, public_key_der)
         else:
             raise PKCS11Error(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
-    def decrypt_for_peer(self, data: bytes, encryption_algorithm: Union[ECDH], derive_peer_public_key_der: bytes):
-        if isinstance(encryption_algorithm, ECDH):
+    def decrypt_for_peer(self, data: bytes, encryption_algorithm: Union[ec.ECDH], derive_peer_public_key_der: bytes):
+        if isinstance(encryption_algorithm, ec.ECDH):
             if derive_peer_public_key_der is None:
-                raise PKCS11Error("derive_peer_public_key_der is required for ECDH encryption")
+                raise PKCS11Error("derive_peer_public_key_der is required for ec.ECDH encryption")
             else:
                 try:
                     serialization.load_der_public_key(derive_peer_public_key_der)
@@ -193,10 +185,10 @@ class PKCS11Key:
         else:
             raise PKCS11Error(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
-    def encrypt_for_peer(self, data: bytes, encryption_algorithm: Union[ECDH], derive_peer_public_key_der: bytes):
-        if isinstance(encryption_algorithm, ECDH):
+    def encrypt_for_peer(self, data: bytes, encryption_algorithm: Union[ec.ECDH], derive_peer_public_key_der: bytes):
+        if isinstance(encryption_algorithm, ec.ECDH):
             if derive_peer_public_key_der is None:
-                raise PKCS11Error("derive_peer_public_key_der is required for ECDH encryption")
+                raise PKCS11Error("derive_peer_public_key_der is required for ec.ECDH encryption")
             else:
                 try:
                     serialization.load_der_public_key(derive_peer_public_key_der)
@@ -216,11 +208,11 @@ class PKCS11Key:
         else:
             raise PKCS11Error(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
-    def validate_signature(self, data: bytes, signature_der: bytes, signature_algorithm: Union[ECDSA]):
+    def validate_signature(self, data: bytes, signature_der: bytes, signature_algorithm: Union[ec.ECDSA]):
         data_digest = self.get_digest(data, signature_algorithm.algorithm)
         self.chroot.write_file("/tmp/data.in", data_digest)
 
-        if isinstance(signature_algorithm, ECDSA):
+        if isinstance(signature_algorithm, ec.ECDSA):
             self.chroot.write_file("/tmp/sig.in", signature_der)
             self.chroot.write_file("/tmp/sig_data.in", data_digest)
             method = f"ECDSA-{signature_algorithm.algorithm.name.upper()}"
@@ -237,11 +229,11 @@ class PKCS11Key:
         else:
             raise PKCS11Error(f"Unsupported signature algorithm: {signature_algorithm}")
 
-    def sign(self, data: bytes, signature_algorithm: Union[ECDSA]) -> bytes:
+    def sign(self, data: bytes, signature_algorithm: Union[ec.ECDSA]) -> bytes:
         data_digest = self.get_digest(data, signature_algorithm.algorithm)
         self.chroot.write_file("/tmp/data.in", data_digest)
 
-        if isinstance(signature_algorithm, ECDSA):
+        if isinstance(signature_algorithm, ec.ECDSA):
             method = f"ECDSA-{signature_algorithm.algorithm.name.upper()}"
         else:
             raise PKCS11Error(f"Unsupported signature algorithm: {signature_algorithm}")
@@ -270,6 +262,7 @@ class PKCS11(Data):
     config_path: str = "pkcs11"
 
     def __init__(self, *args, **kwargs):
+        module_logger.debug(f"Initializing PKCS11 module")
         super().__init__(*args, **kwargs)
         self.config: Optional[PKCS11Config] = None
         self.chroot: Optional[Chroot] = None
@@ -287,6 +280,7 @@ class PKCS11(Data):
                 return hashes.SHA3_512()
 
     def load_config(self, config_data: dict) -> None:
+        module_logger.debug(f"Loading config for PKCS11 module")
         super().load_config(config_data)
         self.create_chroot_environment()
 
@@ -312,7 +306,7 @@ class PKCS11(Data):
         )
 
     def verify(self, data: bytes, signature_b64: str) -> None:
-        module_logger.debug(f"Verifying signature for '{self.validation_key}'")
+        module_logger.info(f"PKCS11: Verifying signature with '{self.validation_key}'")
         if signature_b64 is None:
             raise PKCS11FailedToVerifySignature("Signature is missing")
 
@@ -320,43 +314,43 @@ class PKCS11(Data):
             signature_der = base64.urlsafe_b64decode(signature_b64)
 
             if key.config.signature_algorithm == SignatureAlgorithmsName.ECDSA:
-                signature_algorithm = ECDSA(self._get_hashing_algorithm(key.config))
+                signature_algorithm = ec.ECDSA(self._get_hashing_algorithm(key.config))
                 key.validate_signature(data, signature_der, signature_algorithm)
             else:
                 raise PKCS11FailedToSignData(f"Unsupported signature algorithm: {key.config.signature_algorithm}")
 
     def decrypt(self, data: bytes) -> bytes:
-        module_logger.debug(f"Decrypting data with '{self.encryption_key}'")
+        module_logger.info(f"PKCS11: Decrypting data with '{self.encryption_key}'")
         with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
-                encryption_algorithm = ECDH()
+                encryption_algorithm = ec.ECDH()
                 decrypted_data = key.decrypt(data, encryption_algorithm)
             return decrypted_data
 
     def decrypt_for_peer(self, data: bytes, peer_public_key_pem: str = None) -> bytes:
-        module_logger.debug(f"Decrypting data for peer with '{self.encryption_key}'")
+        module_logger.info(f"PKCS11: Decrypting data for peer with '{self.encryption_key}'")
         with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
-                encryption_algorithm = ECDH()
+                encryption_algorithm = ec.ECDH()
                 peer_public_key_der = serialization.load_pem_public_key(peer_public_key_pem.encode("utf-8")).public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
                 decrypted_data = key.decrypt_for_peer(data, encryption_algorithm, peer_public_key_der)
             return decrypted_data
 
     def encrypt(self, data: bytes) -> bytes:
-        module_logger.debug(f"Encrypting data with '{self.encryption_key}'")
+        module_logger.info(f"PKCS11: Encrypting data with '{self.encryption_key}'")
         with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
-                encryption_algorithm = ECDH()
+                encryption_algorithm = ec.ECDH()
                 encrypted_data = key.encrypt(data, encryption_algorithm)
             return encrypted_data
 
     def encrypt_for_peer(self, data: bytes, peer_public_key_pem: str = None) -> bytes:
-        module_logger.debug(f"Encrypting data for peer with '{self.encryption_key}'")
+        module_logger.info(f"PKCS11: fEncrypting data for peer with '{self.encryption_key}'")
         with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
-                encryption_algorithm = ECDH()
+                encryption_algorithm = ec.ECDH()
                 if not peer_public_key_pem:
-                    raise PKCS11FailedToEncryptData("peer_public_key_pem is required for ECDH encryption")
+                    raise PKCS11FailedToEncryptData("peer_public_key_pem is required for ec.ECDH encryption")
 
                 peer_public_key_der = serialization.load_pem_public_key(peer_public_key_pem.encode("utf-8")).public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
                 encrypted_data = key.encrypt_for_peer(data, encryption_algorithm, peer_public_key_der)
@@ -371,15 +365,15 @@ class PKCS11(Data):
             yield key
         except Exception as e:
             self.cleanup()
-            raise
+            raise VismException(f"Failed to load key: {e}")
         finally:
             self.cleanup()
 
     def sign(self, data: bytes) -> bytes:
-        module_logger.debug(f"Signing data with '{self.validation_key}'")
+        module_logger.info(f"PKCS11: Signing data with '{self.validation_key}'")
         with self._get_key(self.validation_key) as key:
             if key.config.signature_algorithm == SignatureAlgorithmsName.ECDSA:
-                signature_algorithm = ECDSA(self._get_hashing_algorithm(key.config))
+                signature_algorithm = ec.ECDSA(self._get_hashing_algorithm(key.config))
                 signature_der = key.sign(data, signature_algorithm)
             else:
                 raise PKCS11FailedToSignData(f"Unsupported signature algorithm: {key.config.signature_algorithm}")

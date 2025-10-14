@@ -2,12 +2,12 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks
 from starlette.responses import JSONResponse
 
-from vism_acme.db.authz import AuthzStatus, ChallengeStatus
-from vism_acme.db.order import OrderStatus
-from vism_acme import VismACMEController
+from vism_acme import ACMEProblemResponse
+from vism_acme.db import AuthzStatus, ChallengeStatus
+from vism_acme.db import OrderStatus
+from vism_acme.acme import VismACMEController
 from vism_acme.routers import AcmeRequest
-from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.validators.http_01 import Http01Validator
+from vism_acme.validators import Http01Validator
 
 
 class AuthzRouter:

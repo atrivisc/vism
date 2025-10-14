@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from starlette.responses import JSONResponse
-from vism_acme import VismACMEController
+from vism_acme.acme import VismACMEController
 from vism_acme.routers import AcmeRequest
 
 

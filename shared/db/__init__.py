@@ -53,6 +53,7 @@ class Base(MappedAsDataclass, DeclarativeBase):
 
 class VismDatabase:
     def __init__(self, database_config: Database, validation_module: Data):
+        shared_logger.info("Initializing database")
         self.validation_module = validation_module
 
         self.db_url = URL.create(

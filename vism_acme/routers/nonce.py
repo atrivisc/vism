@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from starlette.responses import Response
-from vism_acme import VismACMEController
+from vism_acme.acme import VismACMEController
 from vism_acme.config import acme_logger
 
 

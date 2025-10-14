@@ -8,10 +8,9 @@ from pydantic.dataclasses import dataclass as pydantic_dataclass
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 from shared.util import is_valid_ip
-from vism_acme.config import acme_logger
+from vism_acme import ACMEProblemResponse
 from vism_acme.db import AccountEntity
-from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.util.enum import IdentifierType
+from vism_acme.db import IdentifierType
 
 logger = logging.getLogger(__name__)
 

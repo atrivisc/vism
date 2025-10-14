@@ -1,3 +1,3 @@
 import logging
 
-module_logger = logging.getLogger("module")
+module_logger = logging.getLogger("vism_module")
