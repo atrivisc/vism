@@ -3,6 +3,7 @@ import logging.config
 import sys
 from argparse import Namespace
 from vism_ca.config import Config, CertificateConfig
+from vism_ca.crypto.aes256 import aes256_encrypt
 from vism_ca.crypto.crypto import Crypto
 from vism_ca.db.database import Certificate, VismDatabase
 
@@ -53,10 +54,16 @@ class VismCA:
             cert.crl_pem = cert_config.crl_pem
             cert.save_to_db()
         else:
-            cert.private_key_pem, cert.public_key_pem = crypto_module.generate_private_key(cert_config)
-            cert.csr_pem = crypto_module.generate_csr(cert_config, cert.private_key_pem)
-            cert.certificate_pem = crypto_module.generate_ca_certificate(cert_config, cert.private_key_pem, cert.csr_pem)
-            cert.crl_pem = crypto_module.generate_crl(cert_config, cert.private_key_pem, cert.certificate_pem)
+            unencrypted_private_key, cert.public_key_pem = crypto_module.generate_private_key(cert_config)
+            cert.csr_pem = crypto_module.generate_csr(cert_config, unencrypted_private_key)
+            cert.certificate_pem = crypto_module.generate_ca_certificate(cert_config, unencrypted_private_key, cert.csr_pem)
+            cert.crl_pem = crypto_module.generate_crl(cert_config, unencrypted_private_key, cert.certificate_pem)
+
+            if self.config.security.data_encryption.enabled:
+                cert.private_key_pem = aes256_encrypt(unencrypted_private_key, self.config.security.data_encryption.password)
+            else:
+                cert.private_key_pem = unencrypted_private_key
+
             cert.save_to_db()
 
         return cert

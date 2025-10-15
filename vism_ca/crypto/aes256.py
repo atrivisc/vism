@@ -18,7 +18,7 @@ def derive_key(password: str, salt: bytes) -> bytes:
     return kdf.derive(password.encode())
 
 
-def encrypt(data: str, password: str) -> str:
+def aes256_encrypt(data: str, password: str) -> str:
     salt = os.urandom(16)
     key = derive_key(password, salt)
     iv = os.urandom(16)
@@ -30,7 +30,7 @@ def encrypt(data: str, password: str) -> str:
 
     return base64.b64encode(salt + iv + encrypted_data).decode()
 
-def decrypt(encrypted_data: str, password: str) -> str:
+def aes256_decrypt(encrypted_data: str, password: str) -> str:
     encrypted_data = base64.b64decode(encrypted_data)
 
     salt = encrypted_data[:16]
