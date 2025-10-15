@@ -9,9 +9,8 @@ from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
-from modules.openssl.config import OpenSSLConfig, CAProfile, OpenSSLModuleArgs
+from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs
 from modules.openssl.db import OpenSSLData
-from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound, OpensslException
 from vism_ca.config import CertificateConfig
 from vism_ca.crypto import Crypto
 from vism_ca.util import get_needed_libraries

@@ -22,6 +22,10 @@ class SensitiveDataFilter(logging.Filter):
 
         return True
 
+class ErrorFilter(logging.Filter):
+    def filter(self, record):
+        return record.levelno <= logging.WARNING
+
 class ColoredFormatter(logging.Formatter):
     RED = '\033[91m'
     RESET = '\033[0m'
@@ -33,13 +37,22 @@ class ColoredFormatter(logging.Formatter):
 
         return formatted
 
-def setup_logger(loglevel: str = "INFO", verbose: bool = False):
+def setup_logger(loglevel: str = "INFO", verbose: bool = False, quiet: bool = False):
+    log_level = loglevel
+    if quiet:
+        log_level = "ERROR"
+    if verbose:
+        log_level = "DEBUG"
+
     logging_config = {
         'version': 1,
         'disable_existing_loggers': False,
         'filters': {
             'sensitive_data': {
                 '()': SensitiveDataFilter,
+            },
+            'info_debug_only': {
+                '()': ErrorFilter,
             }
         },
         'formatters': {
@@ -55,18 +68,25 @@ def setup_logger(loglevel: str = "INFO", verbose: bool = False):
             },
         },
         'handlers': {
-            'console': {
-                'level': loglevel if not verbose else 'DEBUG',
+            'console_stdout': {
+                'level': log_level,
                 'class': 'logging.StreamHandler',
                 'formatter': 'verbose' if verbose else 'simple',
                 'stream': sys.stdout,
+                'filters': ['sensitive_data', 'info_debug_only']
+            },
+            'console_stderr': {
+                'level': 'ERROR',
+                'class': 'logging.StreamHandler',
+                'formatter': 'verbose' if verbose else 'simple',
+                'stream': sys.stderr,
                 'filters': ['sensitive_data']
             }
         },
         'loggers': {
             '': {
-                'level': loglevel if not verbose else 'DEBUG',
-                'handlers': ['console']
+                'level': log_level,
+                'handlers': ['console_stdout', 'console_stderr']
             }
         }
     }

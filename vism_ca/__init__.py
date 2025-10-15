@@ -17,7 +17,7 @@ class VismCA:
         self.config: Config = self.load_config()
         self.database = VismDatabase(self.config.database)
 
-        setup_logger(self.config.logging.level, self.cli_args.verbose)
+        setup_logger(self.config.logging.level, self.cli_args.verbose, self.cli_args.quiet)
 
     def get_crypto_module(self, cert_config: CertificateConfig) -> Crypto:
         logging.debug(f"Loading crypto module {cert_config.module} for '{cert_config.name}'.")
@@ -38,9 +38,9 @@ class VismCA:
     def _get_certificate_config(self, certificate_name: str) -> Optional[CertificateConfig]:
         cert_configs = list(filter(lambda conf: conf.name == certificate_name, self.config.x509_certificates))
         if not cert_configs:
-            return logger.error(f"Certificate with name {certificate_name} not found in config.")
+            return logger.error(f"Certificate with name '{certificate_name}' not found in config.")
         if len(cert_configs) > 1:
-            return logger.error(f"Multiple certificates found with the name: {certificate_name}")
+            return logger.error(f"Multiple certificates found with the name: '{certificate_name}'")
 
         return cert_configs[0]
 
@@ -117,6 +117,61 @@ class VismCA:
                 certificates[cert_config.name]['status'] = 'created'
 
         return certificates
+
+    def get_cert_field(self, certificate_name: str, field: str) -> Optional[str]:
+        logging.debug(f"Getting field '{field}' for certificate '{certificate_name}'")
+        cert_config = self._get_certificate_config(certificate_name)
+
+        if not cert_config:
+            return None
+
+        cert = Certificate.get_by_name(cert_config.name)
+
+        if not cert:
+            return logger.error(f"Certificate '{cert_config.name}' not found in database.")
+        if not hasattr(cert, field):
+            return logger.error(f"Field '{field}' not found in certificate '{cert_config.name}'.")
+
+        return getattr(cert, field)
+
+    def get_crl(self, certificate_name: str) -> Optional[str]:
+        return self.get_cert_field(certificate_name, "crl_pem")
+
+    def get_crt(self, certificate_name: str) -> Optional[str]:
+        return self.get_cert_field(certificate_name, "certificate_pem")
+
+    def get_chain(self, certificate_name: str, include_root: bool = False, init: bool = False) -> Optional[str]:
+        logging.info(f"Getting chain for certificate '{certificate_name}'")
+        cert_config = self._get_certificate_config(certificate_name)
+        cert = Certificate.get_by_name(cert_config.name)
+
+        if not cert:
+            return logger.error(f"Certificate '{cert_config.name}' not found in database.")
+
+        chain = cert.certificate_pem
+
+        if cert_config.signed_by is not None:
+            signing_cert_config = self._get_certificate_config(cert_config.signed_by)
+            if not signing_cert_config:
+                return logger.error(f"Signing certificate '{cert_config.signed_by}' config not found.")
+
+            if signing_cert_config.externally_managed:
+                chain += ('\n' + signing_cert_config.certificate_pem)
+
+            signing_cert = Certificate.get_by_name(signing_cert_config.name)
+            if not signing_cert:
+                return logger.error(f"Signing certificate '{signing_cert_config.name}' not found in database.")
+
+            chain += ('\n' + signing_cert.certificate_pem)
+            if signing_cert.signed_by_id:
+                chain += ('\n' + self.get_chain(signing_cert_config.signed_by))
+        elif cert_config.signed_by is None and include_root:
+            return chain
+        elif cert_config.signed_by is None and not include_root:
+            if init:
+                return chain
+
+        return chain
 
     def load_config(self) -> Config:
         logging.debug(f"Loading configuration from {self.cli_args.config}.")
