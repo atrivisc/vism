@@ -73,15 +73,13 @@ crlDistributionPoints   = {{ ext.crlDistributionPoints }}
 default_ca              = {{ certificate.name }}
 
 [ {{ certificate.name }} ]
-certs           = $dir/certs
-crl_dir         = $dir/crl
+certificate     = $dir/$ca.crt
+private_key     = $dir/$ca.key
+crl             = $dir/$ca.crl
 database        = $dir/$ca.db
 new_certs_dir   = $dir/certs
-certificate     = $dir/$ca.crt
 serial          = $dir/serial
 crlnumber       = $dir/crlnumber
-crl             = $dir/$ca.crl
-private_key     = $dir/$ca.key
 rand_serial             = {{ ca_profile.default_ca.rand_serial }}
 unique_subject          = {{ ca_profile.default_ca.unique_subject }}
 default_days            = {{ ca_profile.default_ca.default_days }}
@@ -106,7 +104,9 @@ caIssuers;URI.{{ loop.index0 }} = {{ uri }}
 {% for ext in ca_profile.crl_extensions | default([]) %}
 [ {{ ext.name }} ]
 authorityKeyIdentifier  = {{ ext.authorityKeyIdentifier }}
+{% if ext.authorityInfoAccess %}
 authorityInfoAccess     = {{ ext.authorityInfoAccess }}
+{% endif %}
 {% endfor %}
 
 {% for ext in ca_profile.crl_distribution_points | default([]) %}

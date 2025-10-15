@@ -40,9 +40,6 @@ class VismCA:
 
         return crypto_module
 
-    def create_crl(self, cert_config: CertificateConfig):
-        crypto_module = self.get_crypto_module(cert_config)
-
     def create_certificate(self, cert_config: CertificateConfig) -> Certificate:
         crypto_module = self.get_crypto_module(cert_config)
 
@@ -59,6 +56,7 @@ class VismCA:
             cert.private_key_pem, cert.public_key_pem = crypto_module.generate_private_key(cert_config)
             cert.csr_pem = crypto_module.generate_csr(cert_config, cert.private_key_pem)
             cert.certificate_pem = crypto_module.generate_ca_certificate(cert_config, cert.private_key_pem, cert.csr_pem)
+            cert.crl_pem = crypto_module.generate_crl(cert_config, cert.private_key_pem, cert.certificate_pem)
             cert.save_to_db()
 
         return cert

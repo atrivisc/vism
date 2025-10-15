@@ -49,3 +49,6 @@ class GenCSRException(VismException):
 
 class GenPKEYException(VismException):
     pass
+
+class GenCRLException(VismException):
+    pass

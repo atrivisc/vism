@@ -10,4 +10,8 @@ if __name__ == '__main__':
 
     vism = VismCA(args)
     cert_conf = vism.config.x509_certificates[0]
-    vism.create_certificate(cert_conf)
+
+    try:
+        vism.create_certificate(cert_conf)
+    finally:
+        vism.get_crypto_module(cert_conf).cleanup(full=True)
