@@ -25,6 +25,7 @@ x509_extensions         = {{ ca_profile.req.x509_extensions }}
 req_extensions          = {{ ca_profile.req.req_extensions }}
 {% endif %}
 
+
 {% for ext in ca_profile.distinguished_name_extensions %}
 [ {{ ext.name }} ]
 {% if ext.countryName %}
@@ -46,6 +47,7 @@ organizationalUnitName     = {{ ext.organizationalUnitName }}
 commonName   = {{ ext.commonName }}
 {% endif %}
 {% endfor %}
+
 
 {% for ext in ca_profile.cert_extensions %}
 [ {{ ext.name }} ]

@@ -1,7 +1,8 @@
 import inspect
 import logging
 
-class VismException(Exception):
+
+class VismException(RuntimeError):
     log_level = logging.ERROR
     include_traceback = False
 
@@ -20,14 +21,9 @@ class VismException(Exception):
             del frame
 
         logger = logging.getLogger(logger_name)
-        log_message = f"{self.__class__.__name__}: {message}"
-
-        if self.context:
-            log_message += f" | Context: {self.context}"
-
         logger.log(
             self.log_level,
-            log_message,
+            f"{self.__class__.__name__}: {message}",
             exc_info=self.include_traceback
         )
 

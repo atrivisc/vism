@@ -1,15 +1,12 @@
-from dataclasses import dataclass, field
 from typing import Optional
+from sqlalchemy import String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+from vism_ca.db import ModuleData, VismDatabase
 
-from sqlalchemy import Column, Integer, String, Text, ForeignKey
-from sqlalchemy.orm import Mapped, mapped_column, registry
-
-from vism_ca.db.database import ModuleData, VismDatabase
 
 class OpenSSLData(ModuleData):
     __tablename__ = 'openssl_data'
 
-    id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
     cert_name: Mapped[str] = mapped_column(String)
     cert_serial: Mapped[Optional[str]] = mapped_column(String, nullable=True, default=None)
     database: Mapped[Optional[str]] = mapped_column(Text, nullable=True, default=None)

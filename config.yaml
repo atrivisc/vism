@@ -24,7 +24,6 @@ openssl:
           crlDistributionPoints: "@crl_info"
         - name: "sub_ca_ext"
           authorityInfoAccess: "@aia_root"
-          crlDistributionPoints: "@crl_info"
       authority_info_access_extensions:
         - name: "aia_root"
           caIssuersURIs:
@@ -71,16 +70,13 @@ openssl:
         prompt: "no"
     - name: "service_ca"
       cert_extensions:
-        - name: "ca"
+        - name: "self-sign"
           basicConstraints: "critical,CA:TRUE,pathlen:0"
           keyUsage: "critical,keyCertSign,cRLSign"
           extendedKeyUsage: ""
           authorityKeyIdentifier: "keyid:always,issuer"
           subjectKeyIdentifier: "hash"
           authorityInfoAccess: "@aia_root"
-          crlDistributionPoints: "@crl_info"
-        - name: "sub_ca_ext"
-          authorityInfoAccess: "@aia"
           crlDistributionPoints: "@crl_info"
       authority_info_access_extensions:
         - name: "aia_root"
@@ -111,7 +107,6 @@ openssl:
         policy: "sub_ca_policy"
         copy_extensions: "copy"
         default_crl_days: "7"
-        x509_extensions: "sub_ca_ext"
         crl_extensions: "crl"
         rand_serial: "yes"
         unique_subject: "no"
@@ -124,8 +119,8 @@ openssl:
       req:
         encrypt_key: "no"
         distinguished_name: "ca_dn"
-        x509_extensions: "ca"
-        req_extensions: "ca"
+        x509_extensions: "self-sign"
+        req_extensions: "self-sign"
         default_md: "sha3-512"
         utf8: "yes"
         prompt: "no"
@@ -145,16 +140,14 @@ x509_certificates:
       extension: "self_sign"
       key:
         password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
-        algorithm: "RSA"
-        bits: 4096
+        algorithm: "ED25519"
   - name: 'service_ca'
     signed_by: 'root_ca'
     module: "openssl"
     module_args:
       profile: "service_ca"
       cn: "Service CA"
-      extension: "ca"
+      extension: "sub_ca_ext"
       key:
         password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
-        algorithm: "RSA"
-        bits: 4096
+        algorithm: "ED25519"

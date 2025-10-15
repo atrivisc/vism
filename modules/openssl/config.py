@@ -1,8 +1,10 @@
+import re
 from dataclasses import dataclass, field
 from typing import Optional
 
+from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound
 from vism_ca.config import ModuleArgsConfig
-from vism_ca.crypto.crypto import CryptoConfig
+from vism_ca.crypto import CryptoConfig
 
 
 @dataclass
@@ -123,6 +125,16 @@ class OpenSSLConfig(CryptoConfig):
     def __post_init__(self):
         self.ca_profiles = [CAProfile(**profile) for profile in self.ca_profiles]
 
+    def get_profile_by_name(self, name: str) -> CAProfile:
+        profiles = list(filter(lambda profile: profile.name == name, self.ca_profiles))
+        if len(profiles) == 0:
+            raise ProfileNotFound(f"OpenSSL profile '{name}' not found.")
+
+        if len(profiles) > 1:
+            raise MultipleProfilesFound(f"Multiple profiles found with the name: '{name}'")
+
+        return profiles[0]
+
 @dataclass
 class OpenSSLKeyConfig:
     password: str
@@ -140,3 +152,10 @@ class OpenSSLModuleArgs(ModuleArgsConfig):
 
     def __post_init__(self):
         self.key = OpenSSLKeyConfig(**self.key)
+
+LOGGING_SENSITIVE_PATTERNS = {
+    'openssl_pass': {
+        'pattern': re.compile(r'(-pass(?:in)?\s(?:pass|env):)\S+'),
+        'replace': r'\1[REDACTED]'
+    }
+}
