@@ -1,0 +1,21 @@
+---
+vism_acme:
+  logging:
+    directory: "./logs/"
+
+  profiles:
+    - name: "default"
+      ca: "service_ca"
+      module_args:
+        extension: "service"
+
+  database:
+    host: 127.0.0.1
+    port: 15432
+    database: 'vism_acme'
+    username: 'vism_acme'
+    password: 'vism_acme'
+
+  server:
+    host: 127.0.0.1
+    port: 8080

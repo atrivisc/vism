@@ -2,7 +2,8 @@ import logging
 import os
 import shutil
 import subprocess
-from vism_ca.util.errors import ChrootWriteFileExists, ChrootOpenFileException, ChrootWriteToFileException
+
+from vism_ca.errors import ChrootWriteFileExists, ChrootOpenFileException, ChrootWriteToFileException
 
 logger = logging.getLogger(__name__)
 

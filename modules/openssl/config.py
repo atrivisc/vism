@@ -4,7 +4,7 @@ from typing import Optional
 
 from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound
 from vism_ca.config import ModuleArgsConfig
-from vism_ca.crypto import CryptoConfig
+from vism_ca.ca.crypto import CryptoConfig
 
 
 @dataclass
@@ -143,15 +143,16 @@ class OpenSSLKeyConfig:
 
 @dataclass
 class OpenSSLModuleArgs(ModuleArgsConfig):
-    profile: str
-    cn: str
-    extension: str
-    key: OpenSSLKeyConfig
+    profile: str = None
+    cn: str = None
+    extension: str = None
+    key: OpenSSLKeyConfig = None
     days: int = None
     config_template: str = 'openssl.conf.j2'
 
     def __post_init__(self):
-        self.key = OpenSSLKeyConfig(**self.key)
+        if self.key is not None:
+            self.key = OpenSSLKeyConfig(**self.key)
 
 LOGGING_SENSITIVE_PATTERNS = {
     'openssl_pass': {

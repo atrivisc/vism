@@ -1,13 +1,4 @@
 ---
-logging:
-  directory: "./logs/"
-
-security:
-  chroot_base_dir: "/tmp/jail"
-  data_encryption:
-    enabled: true
-    password: "54v%$C@#66v452c2463bvu3C%$#^@CX"
-
 openssl:
   uid: 1001
   gid: 1001
@@ -67,7 +58,6 @@ openssl:
         req_extensions: "self_sign"
         default_md: "sha3-512"
         utf8: "yes"
-        prompt: "no"
     - name: "service_ca"
       cert_extensions:
         - name: "self-sign"
@@ -78,6 +68,8 @@ openssl:
           subjectKeyIdentifier: "hash"
           authorityInfoAccess: "@aia_root"
           crlDistributionPoints: "@crl_info"
+        - name: "service"
+          authorityInfoAccess: "@aia"
       authority_info_access_extensions:
         - name: "aia_root"
           caIssuersURIs:
@@ -123,31 +115,41 @@ openssl:
         req_extensions: "self-sign"
         default_md: "sha3-512"
         utf8: "yes"
-        prompt: "no"
-database:
-  host: 127.0.0.1
-  port: 5432
-  database: 'vism'
-  username: 'vism'
-  password: 'vism'
 
-x509_certificates:
-  - name: "root_ca"
-    module: "openssl"
-    module_args:
-      profile: "root"
-      cn: "Root CA"
-      extension: "self_sign"
-      key:
-        password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
-        algorithm: "ED25519"
-  - name: 'service_ca'
-    signed_by: 'root_ca'
-    module: "openssl"
-    module_args:
-      profile: "service_ca"
-      cn: "Service CA"
-      extension: "sub_ca_ext"
-      key:
-        password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
-        algorithm: "ED25519"
+vism_ca:
+  logging:
+    directory: "./logs/"
+
+  security:
+    chroot_base_dir: "/tmp/jail"
+    data_encryption:
+      enabled: true
+      password: "54v%$C@#66v452c2463bvu3C%$#^@CX"
+
+  database:
+    host: 127.0.0.1
+    port: 5432
+    database: 'vism'
+    username: 'vism'
+    password: 'vism'
+
+  x509_certificates:
+    - name: "root_ca"
+      module: "openssl"
+      module_args:
+        profile: "root"
+        cn: "Root CA"
+        extension: "self_sign"
+        key:
+          password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
+          algorithm: "ED25519"
+    - name: 'service_ca'
+      signed_by: 'root_ca'
+      module: "openssl"
+      module_args:
+        profile: "service_ca"
+        cn: "Service CA"
+        extension: "sub_ca_ext"
+        key:
+          password: "803BF0260B7F0000:error:80000002:systemlibrary:BIO_new_file:Nosuchfileordirectory:crypto/bio/bss_file.c:67:calling"
+          algorithm: "ED25519"

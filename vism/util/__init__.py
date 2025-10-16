@@ -66,3 +66,20 @@ def get_needed_libraries(binary_path) -> list[str]:
             result.stdout.split("\n")[:-1]
         )
     )
+
+def b64u_decode(data: str) -> bytes:
+    if data is None:
+        return b""
+
+    if isinstance(data, bytes):
+        data = data.decode("ascii")
+
+    data = data.strip()
+    if data == "":
+        return b""
+
+    rem = len(data) % 4
+    if rem:
+        data += "=" * (4 - rem)
+
+    return base64.urlsafe_b64decode(data)

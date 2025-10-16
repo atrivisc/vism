@@ -1,8 +1,11 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, Any
 
 import yaml
 import logging
+
+from vism import Config
+from vism_ca.errors import CertConfigNotFound
 
 logger = logging.getLogger(__name__)
 
@@ -52,33 +55,32 @@ class CertificateConfig:
         module_import = __import__(f'modules.{self.module}', fromlist=['ModuleArgsConfig'])
         self.module_args = module_import.ModuleArgsConfig(**self.module_args)
 
-class Config:
-    def __init__(self, config_file):
-        self.config_file = config_file
+@dataclass
+class API:
+    host: str = "0.0.0.0"
+    port: int = 8080
 
-        self.raw_config_data: Optional[dict] = None
+class APIConfig(Config):
+    def __init__(self, config_file_path: str):
+        super().__init__(config_file_path)
 
-        self.database: Optional[Database] = None
-        self.logging: Optional[Logging] = None
-        self.x509_certificates: Optional[list[CertificateConfig]] = None
-        self.security: Optional[Security] = None
+        self.api: Optional[API] = API(**self.raw_config_data.get("api", {}))
 
-        self.load()
+class CAConfig(Config):
+    def __init__(self, config_file_path: str):
+        super().__init__(config_file_path)
 
-    def load(self):
-        try:
-            with open(self.config_file, 'r') as file:
-                config_data = yaml.safe_load(file)
-                self.raw_config_data = config_data
+        ca_config = self.raw_config_data.get("vism_ca", {})
+        self.database = Database(**ca_config.get("database", {}))
+        self.logging = Logging(**ca_config.get("logging", {}))
+        self.security = Security(**ca_config.get("security", {}))
+        self.x509_certificates = [CertificateConfig(**cert) for cert in ca_config.get("x509_certificates", [])]
 
-                self.database = Database(**config_data['database'])
-                self.logging = Logging(**config_data['logging'])
-                self.security = Security(**config_data['security'])
-                self.x509_certificates = [CertificateConfig(**cert) for cert in config_data.get('x509_certificates', [])]
+    def get_cert_config_by_name(self, cert_name: str) -> CertificateConfig:
+        cert_configs = list(filter(lambda conf: conf.name == cert_name, self.x509_certificates))
+        if not cert_configs:
+            raise CertConfigNotFound(f"Certificate with name '{cert_name}' not found in config.")
+        if len(cert_configs) > 1:
+            raise ValueError(f"Multiple certificates found with the name: '{cert_name}'")
 
-            logger.debug(f"Configuration file '{self.config_file}' loaded successfully.")
-        except FileNotFoundError:
-            logger.error(f"Error: The file '{self.config_file}' was not found.")
-        except yaml.YAMLError as e:
-            logger.error(f"Error: There was an issue with parsing the YAML file: {e}")
-
+        return cert_configs[0]

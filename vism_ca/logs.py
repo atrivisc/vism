@@ -37,13 +37,7 @@ class ColoredFormatter(logging.Formatter):
 
         return formatted
 
-def setup_logger(loglevel: str = "INFO", verbose: bool = False, quiet: bool = False):
-    log_level = loglevel
-    if quiet:
-        log_level = "ERROR"
-    if verbose:
-        log_level = "DEBUG"
-
+def setup_logger():
     logging_config = {
         'version': 1,
         'disable_existing_loggers': False,
@@ -69,23 +63,23 @@ def setup_logger(loglevel: str = "INFO", verbose: bool = False, quiet: bool = Fa
         },
         'handlers': {
             'console_stdout': {
-                'level': log_level,
+                'level': "INFO",
                 'class': 'logging.StreamHandler',
-                'formatter': 'verbose' if verbose else 'simple',
+                'formatter': 'verbose',
                 'stream': sys.stdout,
                 'filters': ['sensitive_data', 'info_debug_only']
             },
             'console_stderr': {
                 'level': 'ERROR',
                 'class': 'logging.StreamHandler',
-                'formatter': 'verbose' if verbose else 'simple',
+                'formatter': 'verbose',
                 'stream': sys.stderr,
                 'filters': ['sensitive_data']
             }
         },
         'loggers': {
-            '': {
-                'level': log_level,
+            'vism_ca': {
+                'level': "INFO",
                 'handlers': ['console_stdout', 'console_stderr']
             }
         }

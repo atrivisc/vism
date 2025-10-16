@@ -1,11 +1,18 @@
 import argparse
-import json
 import logging
 from typing import Any, Optional
 
-from vism_ca import VismCA
+import uvicorn
+
 
 logger = logging.getLogger("cli")
+
+def parse_kv_args(args: list[str]) -> dict[str, str]:
+    kv_args = {}
+    for arg in args:
+        key, value = arg.split("=")
+        kv_args[key] = value
+    return kv_args
 
 def main() -> Optional[Any]:
     ### Base arguments ###
@@ -21,60 +28,25 @@ def main() -> Optional[Any]:
     component_subparsers = parser.add_subparsers(dest='component', required=True, help='component')
 
     ### CA ###
-    vism_ca = VismCA(pre_args)
-
     ca_parser = component_subparsers.add_parser('ca', help='CA')
     ca_subparser = ca_parser.add_subparsers(dest='ca_command', required=True, help='ca command')
+    status_parser = ca_subparser.add_parser('start', help='Run the CA api')
 
-    ### Get commands ###
-    get_crl_parser = ca_subparser.add_parser('get_crl', help='Get a certificate crl')
-    get_crl_parser.add_argument('cert_name', help='Name of the certificate')
-    get_crt_parser = ca_subparser.add_parser('get_crt', help='Get a certificate pem')
-    get_crt_parser.add_argument('cert_name', help='Name of the certificate')
-
-    get_chain_parser = ca_subparser.add_parser('get_chain', help='Get a certificate chain')
-    get_chain_parser.add_argument('cert_name', help='Name of the certificate')
-    get_chain_parser.add_argument('--include-root', action='store_true', help='Include the root certificate in the chain', default=False)
-
-    ### Status command ###
-    status_parser = ca_subparser.add_parser('status', help='Show the status of the CA')
-
-    ### Create command ###
-    create_parser = ca_subparser.add_parser('create', help='Create a new CA')
-    create_parser.add_argument('ca_cert_name',
-                               help='Name of the CA or predefined option (all: create all certificates, external: create only external certificates)',
-                               choices=['all', 'external', 'internal'] + [cert.name for cert in vism_ca.config.x509_certificates])
+    ### Acme ###
+    acme_parser = component_subparsers.add_parser('acme', help='ACME')
+    acme_subparser = acme_parser.add_subparsers(dest='acme_command', required=True, help='acme command')
+    status_parser = acme_subparser.add_parser('start', help='Run the ACME api')
 
     args = parser.parse_args()
 
     if args.component == 'ca':
+        if args.ca_command == 'start':
+            uvicorn.run("vism_ca.api:app", host="0.0.0.0", port=8000, reload=True)
 
-        if args.ca_command == 'status':
-            return json.dumps(vism_ca.ca_status())
+    if args.component == 'acme':
+        if args.acme_command == 'start':
+            uvicorn.run("vism_acme.main:app", host="0.0.0.0", port=8080, reload=True)
 
-        if args.ca_command == 'get_crl':
-            return vism_ca.get_crl(args.cert_name)
-
-        if args.ca_command == 'get_crt':
-            return vism_ca.get_crt(args.cert_name)
-
-        if args.ca_command == 'get_chain':
-            return vism_ca.get_chain(args.cert_name, args.include_root, init=True)
-
-        if args.ca_command == 'create':
-            if args.ca_cert_name == 'all':
-                certificate_names = [cert.name for cert in vism_ca.config.x509_certificates]
-                return vism_ca.create_certificates(certificate_names)
-
-            if args.ca_cert_name == 'external':
-                certificate_names = [cert.name for cert in vism_ca.config.x509_certificates if cert.externally_managed]
-                return vism_ca.create_certificates(certificate_names)
-
-            if args.ca_cert_name == 'internal':
-                certificate_names = [cert.name for cert in vism_ca.config.x509_certificates if not cert.externally_managed]
-                return vism_ca.create_certificates(certificate_names)
-
-            return vism_ca.create_certificate(args.ca_cert_name)
 
     return None
 
