@@ -45,7 +45,7 @@ def main() -> Optional[Any]:
 
     if args.component == 'acme':
         if args.acme_command == 'start':
-            uvicorn.run("vism_acme.main:app", host="0.0.0.0", port=8080, reload=True)
+            uvicorn.run("vism_acme:app", host="0.0.0.0", port=8080, reload=True)
 
 
     return None

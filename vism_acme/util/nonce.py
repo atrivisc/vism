@@ -8,7 +8,7 @@ class NonceManager:
 
     def __init__(self, config: AcmeConfig):
         self.lock = asyncio.Lock()
-        self.nonces = TTLCache(ttl=config.nonce_ttl_seconds, maxsize=10000)
+        self.nonces = TTLCache(ttl=int(config.nonce_ttl_seconds), maxsize=10000)
 
     async def new_nonce(self, account_id: int = None) -> str:
         nonce = secrets.token_urlsafe(32)
@@ -21,7 +21,7 @@ class NonceManager:
 
     async def pop_nonce(self, nonce: str, account_id: int = None) -> bool:
         async with self.lock:
-            nonce_account = self.nonces.get(nonce, None)
+            nonce_account = self.nonces.pop(nonce, None)
             if nonce_account is None or (nonce_account != account_id and nonce_account != -1):
                 return False
 

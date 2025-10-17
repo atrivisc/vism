@@ -6,6 +6,14 @@ vism_acme:
   profiles:
     - name: "default"
       ca: "service_ca"
+      default: true
+      acl:
+        - domain: "www.example.com"
+          clients:
+            - "127.0.0.1"
+        - domain: "example.com"
+          clients:
+            - "127.0.0.1"
       module_args:
         extension: "service"
 

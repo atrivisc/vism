@@ -1,7 +1,6 @@
 from fastapi import APIRouter
-from starlette.requests import Request
 from starlette.responses import JSONResponse
-from vism_acme.main import VismACMEController
+from vism_acme import VismACMEController
 from vism_acme.routers import AcmeRequest
 
 
@@ -20,7 +19,7 @@ class BaseRouter:
             "revokeCert": f"{base}/revoke-cert",
             "keyChange": None,
             "meta": {
-                "profiles": {profile.name: profile.__dict__ for profile in self.controller.config.profiles}
+                "profiles": {profile.name: profile.to_dict() for profile in self.controller.config.profiles}
             }
         }
         return JSONResponse(dir_obj)

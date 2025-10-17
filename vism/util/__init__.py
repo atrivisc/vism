@@ -1,3 +1,4 @@
+import ipaddress
 import subprocess
 import os
 import base64
@@ -7,6 +8,19 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives import padding
 
+def is_valid_ip(ip_str):
+    try:
+        ipaddress.ip_address(ip_str)
+        return True
+    except ValueError:
+        return False
+
+def is_valid_subnet(subnet_str):
+    try:
+        ipaddress.ip_network(subnet_str, strict=False)
+        return True
+    except ValueError:
+        return False
 
 def derive_key(password: str, salt: bytes) -> bytes:
     kdf = PBKDF2HMAC(

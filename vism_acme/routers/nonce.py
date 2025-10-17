@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 from starlette.responses import Response
-from vism_acme.main import VismACMEController
+from vism_acme import VismACMEController
 
 
 class NonceRouter:
