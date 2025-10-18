@@ -42,14 +42,14 @@ class AcmeIdentifier:
     @classmethod
     def type_must_be_valid(cls, v):
         if v and v not in [IdentifierType.IP, IdentifierType.DNS]:
-            raise ACMEProblemResponse(type="malformed", title=f"Invalid identifier type value", detail="identifier type must be one of dns, ip")
+            raise ACMEProblemResponse(type="unsupportedIdentifier", title=f"Invalid identifier type value", detail="identifier type must be one of dns, ip")
         return v
 
     @field_validator("value")
     @classmethod
     def value_must_be_valid(cls, v):
         if v and '*' in v:
-            raise ACMEProblemResponse(type="malformed", title=f"Invalid identifier value", detail="identifier values can not be wildcard")
+            raise ACMEProblemResponse(type="rejectedIdentifier", title=f"Invalid identifier value", detail="identifier values can not be wildcard")
         return v
 
     def __post_init__(self):
@@ -57,7 +57,7 @@ class AcmeIdentifier:
             self.value = self.value.lower()
         if self.type == "ip":
             if not is_valid_ip(self.value):
-                raise ACMEProblemResponse(type="malformed", title=f"Invalid identifier value", detail="With type ip value must be a valid IP address")
+                raise ACMEProblemResponse(type="rejectedIdentifier", title=f"Invalid identifier value", detail="With type ip value must be a valid IP address")
 
     def to_dict(self):
         return {

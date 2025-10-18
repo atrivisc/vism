@@ -5,8 +5,8 @@ from fastapi import APIRouter
 from starlette.responses import JSONResponse
 
 from vism_acme.config import Profile
-from vism_acme.db.challenge import ChallengeEntry, AuthzEntry, AuthzStatus, ChallengeStatus
-from vism_acme.db.order import OrderEntry
+from vism_acme.db.authz import ChallengeEntity, AuthzEntity, AuthzStatus, ChallengeStatus
+from vism_acme.db.order import OrderEntity
 from vism_acme import VismACMEController
 from vism_acme.routers import AcmeRequest
 from vism_acme.schema.response import ACMEProblemResponse
@@ -85,7 +85,7 @@ class OrderRouter:
                 subproblems=errors
             )
 
-        order = OrderEntry(
+        order = OrderEntity(
             account=request.state.account,
             status="pending",
             profile_name=profile.name,
@@ -97,24 +97,24 @@ class OrderRouter:
 
         authz_urls = []
         for identifier in request.state.jws_envelope.payload.identifiers:
-            authz_entry = AuthzEntry(
+            authz_entity = AuthzEntity(
                 identifier_type=identifier.type,
                 identifier_value=identifier.value,
                 status=AuthzStatus.PENDING,
                 wildcard=False,
                 order=order,
             )
-            authz_entry = self.controller.database.save_to_db(authz_entry)
-            authz_urls.append(absolute_url(request, f"/authz/{authz_entry.id}"))
+            authz_entity = self.controller.database.save_to_db(authz_entity)
+            authz_urls.append(absolute_url(request, f"/authz/{authz_entity.id}"))
 
             for challenge_type in profile.supported_challenge_types:
                 token = secrets.token_urlsafe(32)
                 key_authorization = token + "." + request.state.account.jwk.thumbprint()
-                challenge = ChallengeEntry(
+                challenge = ChallengeEntity(
                     type=challenge_type,
                     status=ChallengeStatus.PENDING,
                     key_authorization=key_authorization,
-                    authz=authz_entry,
+                    authz=authz_entity,
                 )
                 self.controller.database.save_to_db(challenge)
 
@@ -139,7 +139,7 @@ class OrderRouter:
             domain_ips = set([x[4][0] for x in socket.getaddrinfo(domain, None)])
         except socket.gaierror as e:
             return ACMEProblemResponse(
-                type="malformed",
+                type="dns",
                 title=f"Domain {domain} does not exist",
                 detail=str(e)
             )
@@ -152,7 +152,7 @@ class OrderRouter:
 
         if len(domain_ips) == 0:
             return ACMEProblemResponse(
-                type="malformed",
+                type="dns",
                 title=f"Domain exists but has no IPs",
             )
 

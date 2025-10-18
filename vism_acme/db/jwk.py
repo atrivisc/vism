@@ -6,7 +6,7 @@ from sqlalchemy.orm import mapped_column
 from vism_acme.db.base import Base
 
 
-class JWKEntry(Base):
+class JWKEntity(Base):
     __tablename__ = 'jwk'
 
     kty: Mapped[str] = mapped_column(String)

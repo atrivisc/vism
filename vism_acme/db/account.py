@@ -6,10 +6,10 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from vism_acme.db.base import Base
-from vism_acme.db.jwk import JWKEntry
+from vism_acme.db.jwk import JWKEntity
 
 
-class AccountEntry(Base):
+class AccountEntity(Base):
     __tablename__ = 'account'
 
     kid: Mapped[str] = mapped_column(String)
@@ -19,7 +19,7 @@ class AccountEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
     jwk_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('jwk.id'), init=False)
-    _jwk: Mapped[JWKEntry] = relationship("JWKEntry", lazy="joined", default=None)
+    _jwk: Mapped[JWKEntity] = relationship("JWKEntity", lazy="joined", default=None)
 
     @property
     def jwk(self):

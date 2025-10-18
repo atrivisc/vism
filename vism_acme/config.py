@@ -127,6 +127,21 @@ class Profile:
             self.supported_challenge_types = ["http-01"]
 
 @dataclass
+class Http01:
+    port: int = 28080
+    follow_redirect: bool = True
+    timeout_seconds: int = 2
+    retries: int = 1
+    retry_delay_seconds: int = 0.1
+
+    @field_validator("port")
+    @classmethod
+    def port_must_be_valid(cls, v):
+        if v < 1 or v > 65535:
+            raise ValueError("Port must be between 1 and 65535")
+        return v
+
+@dataclass
 class API:
     host: str = "0.0.0.0"
     port: int = 8080
@@ -158,8 +173,9 @@ class AcmeConfig(Config):
         self.profiles = [Profile(**profile) for profile in acme_config.get("profiles", {})]
         self.default_profile: Optional[Profile] = None
         self.server = API(**acme_config.get("server", {}))
+        self.http01 = Http01(**acme_config.get("http01", {}))
         self.nonce_ttl_seconds = str(acme_config.get("nonce_ttl_seconds", 300))
-        self.retry_after_seconds = str(acme_config.get("retry_after_seconds", 60))
+        self.retry_after_seconds = str(acme_config.get("retry_after_seconds", 5))
 
         self.validate_config()
 

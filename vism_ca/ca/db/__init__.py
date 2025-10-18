@@ -16,7 +16,7 @@ class Base(MappedAsDataclass, DeclarativeBase):
 class ModuleData(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
 
-class CertificateEntry(Base):
+class CertificateEntity(Base):
     __tablename__ = 'certificate'
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, init=False)
@@ -67,12 +67,12 @@ class VismDatabase:
             self.registered_modules.append(module_data.__name__)
 
     def create_tables(self):
-        self.mapper_registry.mapped_as_dataclass(CertificateEntry)
+        self.mapper_registry.mapped_as_dataclass(CertificateEntity)
         self.mapper_registry.metadata.create_all(self.engine)
 
-    def get_cert_by_name(self, name: str) -> Optional[CertificateEntry]:
+    def get_cert_by_name(self, name: str) -> Optional[CertificateEntity]:
         with self.get_session() as session:
-            return session.query(CertificateEntry).filter(CertificateEntry.name == name).first()
+            return session.query(CertificateEntity).filter(CertificateEntity.name == name).first()
 
     def save_to_db(self, obj):
         try:

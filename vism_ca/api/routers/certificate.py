@@ -23,8 +23,8 @@ class CertificateRouter:
         self.router.get("/{certificate_name}")(self.get_certificate)
 
     def get_certificate(self, certificate_name: str):
-        cert_entry = self.ca.database.get_cert_by_name(name=certificate_name)
-        if not cert_entry:
+        cert_entity = self.ca.database.get_cert_by_name(name=certificate_name)
+        if not cert_entity:
             return JSONResponse(
                 status_code=404,
                 content={"err": "Certificate not found."},
@@ -34,7 +34,7 @@ class CertificateRouter:
             )
         return JSONResponse(
             status_code=200,
-            content=CertificateResponse(**cert_entry.cert_data()).model_dump(),
+            content=CertificateResponse(**cert_entity.cert_data()).model_dump(),
             headers={}
         )
 

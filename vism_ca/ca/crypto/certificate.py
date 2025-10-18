@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from vism.util import aes256_decrypt, aes256_encrypt
-from vism_ca.ca import CertificateEntry, CryptoModule, VismCA
+from vism_ca.ca import CertificateEntity, CryptoModule, VismCA
 from vism_ca.config import CertificateConfig
 from vism_ca.errors import GenCertException
 
@@ -34,7 +34,7 @@ class Certificate:
         if self.config.signed_by is not None:
             self.signing_cert = Certificate(ca, self.config.signed_by)
 
-        self.db_entry: Optional['CertificateEntry'] = self.ca.database.get_cert_by_name(self.name)
+        self.db_entity: Optional['CertificateEntity'] = self.ca.database.get_cert_by_name(self.name)
 
     def create(self) -> CertificateData:
         try:
@@ -45,12 +45,12 @@ class Certificate:
     def _create(self) -> 'CertificateData':
         logger.info(f"Creating certificate '{self.name}'")
 
-        if self.db_entry:
+        if self.db_entity:
             logger.warning(f"Certificate '{self.name}' already exists. Skipping.")
             return CertificateData(
                 name=self.name,
-                crt_pem=self.db_entry.crt_pem,
-                crl_pem=self.db_entry.crl_pem
+                crt_pem=self.db_entity.crt_pem,
+                crl_pem=self.db_entity.crl_pem
             )
 
         if self.config.externally_managed:
@@ -65,7 +65,7 @@ class Certificate:
                 crt_pem=self.config.certificate_pem,
                 crl_pem=self.config.crl_pem
             )
-            self.ca.database.save_to_db(CertificateEntry(name=cert_data.name, crt_pem=cert_data.crt_pem, crl_pem=cert_data.crl_pem))
+            self.ca.database.save_to_db(CertificateEntity(name=cert_data.name, crt_pem=cert_data.crt_pem, crl_pem=cert_data.crl_pem))
             return cert_data
 
         unencrypted_private_key, public_key_pem = self.crypto_module.generate_private_key(self.config)
@@ -75,10 +75,10 @@ class Certificate:
             if self.signing_cert.config.externally_managed and self.config.externally_managed is None and self.config.crl_pem is None:
                 raise GenCertException(f"Signing certificate '{self.signing_cert.name}' is externally managed. Please sign '{self.name}' certificate manually.")
 
-            if self.signing_cert.db_entry is None:
+            if self.signing_cert.db_entity is None:
                 raise GenCertException(f"Signing certificate '{self.signing_cert.name}' not found in database.")
 
-            signing_private_key_encrypted = self.signing_cert.db_entry.pkey_pem
+            signing_private_key_encrypted = self.signing_cert.db_entity.pkey_pem
             if self.ca.config.security.data_encryption.enabled:
                 signing_private_key_decrypted = aes256_decrypt(signing_private_key_encrypted, self.ca.config.security.data_encryption.password)
             else:
@@ -87,7 +87,7 @@ class Certificate:
             crt_pem = self.signing_cert.crypto_module.sign_ca_certificate(
                 self.config,
                 self.signing_cert.config,
-                self.signing_cert.db_entry.crt_pem,
+                self.signing_cert.db_entity.crt_pem,
                 signing_private_key_decrypted,
                 csr_pem
             )
@@ -104,7 +104,7 @@ class Certificate:
         else:
             private_key_pem = unencrypted_private_key
 
-        db_entry = CertificateEntry(
+        db_entity = CertificateEntity(
             name=self.name,
             crt_pem=crt_pem,
             csr_pem=csr_pem,
@@ -114,7 +114,7 @@ class Certificate:
             externally_managed=self.config.externally_managed,
             module=self.config.module,
         )
-        self.ca.database.save_to_db(db_entry)
+        self.ca.database.save_to_db(db_entity)
 
         return CertificateData(
             name=self.name,

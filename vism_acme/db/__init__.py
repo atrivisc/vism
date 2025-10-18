@@ -5,13 +5,13 @@ from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.engine import URL, create_engine
 from vism.util.errors import VismDatabaseException
 from vism_acme.config import Database
-from vism_acme.db.account import AccountEntry
+from vism_acme.db.account import AccountEntity
 from vism_acme.db.base import Base
-from vism_acme.db.jwk import JWKEntry
-from .order import OrderEntry
-from .challenge import ChallengeEntry, AuthzEntry
-from .account import AccountEntry
-from .jwk import JWKEntry
+from vism_acme.db.jwk import JWKEntity
+from .authz import AuthzEntity, ChallengeEntity
+from .order import OrderEntity
+from .account import AccountEntity
+from .jwk import JWKEntity
 
 class VismDatabase:
     def __init__(self, database_config: Database):
@@ -28,49 +28,49 @@ class VismDatabase:
         self.session_maker = sessionmaker(bind=self.engine)
         self._create_tables()
 
-    def get_orders_by_account_kid(self, account_kid: str) -> Optional[list[OrderEntry]]:
+    def get_orders_by_account_kid(self, account_kid: str) -> Optional[list[OrderEntity]]:
         with self._get_session() as session:
-            account_entry = session.query(AccountEntry).filter(AccountEntry.kid == account_kid).first()
-            if account_entry:
-                return session.query(OrderEntry).filter(OrderEntry.account_id == account_entry.id).all()
+            account_entity = session.query(AccountEntity).filter(AccountEntity.kid == account_kid).first()
+            if account_entity:
+                return session.query(OrderEntity).filter(OrderEntity.account_id == account_entity.id).all()
 
-    def get_order_by_id(self, order_id: str) -> Optional[OrderEntry]:
+    def get_order_by_id(self, order_id: str) -> Optional[OrderEntity]:
         with self._get_session() as session:
-            return session.query(OrderEntry).filter(OrderEntry.id == order_id).first()
+            return session.query(OrderEntity).filter(OrderEntity.id == order_id).first()
 
-    def get_authz_by_order_id(self, order_id: str) -> Optional[list[AuthzEntry]]:
+    def get_authz_by_order_id(self, order_id: str) -> Optional[list[AuthzEntity]]:
         with self._get_session() as session:
-            return session.query(AuthzEntry).filter(AuthzEntry.order_id == order_id).all()
+            return session.query(AuthzEntity).filter(AuthzEntity.order_id == order_id).all()
 
-    def get_challenges_by_authz_id(self, authz_id: str) -> Optional[list[ChallengeEntry]]:
+    def get_challenges_by_authz_id(self, authz_id: str) -> Optional[list[ChallengeEntity]]:
         with self._get_session() as session:
-            return session.query(ChallengeEntry).filter(ChallengeEntry.authz_id == authz_id).all()
+            return session.query(ChallengeEntity).filter(ChallengeEntity.authz_id == authz_id).all()
 
-    def get_authz_by_id(self, authz_id: str) -> Optional[AuthzEntry]:
+    def get_authz_by_id(self, authz_id: str) -> Optional[AuthzEntity]:
         with self._get_session() as session:
-            return session.query(AuthzEntry).filter(AuthzEntry.id == authz_id).first()
+            return session.query(AuthzEntity).filter(AuthzEntity.id == authz_id).first()
 
-    def get_challenge_by_id(self, challenge_id: str) -> Optional[ChallengeEntry]:
+    def get_challenge_by_id(self, challenge_id: str) -> Optional[ChallengeEntity]:
         with self._get_session() as session:
-            return session.query(ChallengeEntry).filter(ChallengeEntry.id == challenge_id).first()
+            return session.query(ChallengeEntity).filter(ChallengeEntity.id == challenge_id).first()
 
-    def get_account_by_jwk(self, jwk_data: JWK) -> Optional[AccountEntry]:
+    def get_account_by_jwk(self, jwk_data: JWK) -> Optional[AccountEntity]:
         with self._get_session() as session:
             if jwk_data['kty'] == 'oct':
-                jwk_entry = session.query(JWKEntry).filter(JWKEntry.k == jwk_data['k'], JWKEntry.kty == jwk_data['kty']).first()
+                jwk_entity = session.query(JWKEntity).filter(JWKEntity.k == jwk_data['k'], JWKEntity.kty == jwk_data['kty']).first()
             if jwk_data['kty'] == 'EC':
-                jwk_entry = session.query(JWKEntry).filter(JWKEntry.crv == jwk_data['crv'], JWKEntry.x == jwk_data['x'], JWKEntry.y == jwk_data['y'], JWKEntry.kty == jwk_data['kty']).first()
+                jwk_entity = session.query(JWKEntity).filter(JWKEntity.crv == jwk_data['crv'], JWKEntity.x == jwk_data['x'], JWKEntity.y == jwk_data['y'], JWKEntity.kty == jwk_data['kty']).first()
             if jwk_data['kty'] == 'RSA':
-                jwk_entry = session.query(JWKEntry).filter(JWKEntry.n == jwk_data['n'], JWKEntry.e == jwk_data['e'], JWKEntry.kty == jwk_data['kty']).first()
+                jwk_entity = session.query(JWKEntity).filter(JWKEntity.n == jwk_data['n'], JWKEntity.e == jwk_data['e'], JWKEntity.kty == jwk_data['kty']).first()
 
-            if not jwk_entry:
+            if not jwk_entity:
                 return None
 
-            return session.query(AccountEntry).filter(AccountEntry.jwk_id == jwk_entry.id).first()
+            return session.query(AccountEntity).filter(AccountEntity.jwk_id == jwk_entity.id).first()
 
-    def get_account_by_kid(self, kid: str) -> Optional[AccountEntry]:
+    def get_account_by_kid(self, kid: str) -> Optional[AccountEntity]:
         with self._get_session() as session:
-            return session.query(AccountEntry).filter(AccountEntry.kid == kid).first()
+            return session.query(AccountEntity).filter(AccountEntity.kid == kid).first()
 
     def save_to_db(self, obj):
         try:

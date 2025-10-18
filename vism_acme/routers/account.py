@@ -3,7 +3,7 @@ import secrets
 from fastapi import APIRouter
 from starlette.responses import JSONResponse
 
-from vism_acme.db import AccountEntry, JWKEntry
+from vism_acme.db import AccountEntity, JWKEntity
 from vism_acme import VismACMEController
 from vism_acme.routers import AcmeRequest
 from vism_acme.schema.response import ACMEProblemResponse
@@ -67,9 +67,9 @@ class AccountRouter:
             kid = "acct-" + secrets.token_hex(12)
             status = "valid"
 
-            jwk = JWKEntry(**request.state.jws_envelope.headers.jwk)
+            jwk = JWKEntity(**request.state.jws_envelope.headers.jwk)
             jwk = self.controller.database.save_to_db(jwk)
-            account = AccountEntry(
+            account = AccountEntity(
                 kid=kid,
                 status=status,
                 _jwk=jwk,

@@ -6,7 +6,7 @@ from sqlalchemy import Integer, String, DateTime, func, ForeignKey, Text, Uuid
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from vism_acme.db import AccountEntry
+from vism_acme.db import AccountEntity
 from vism_acme.db.base import Base
 
 class OrderStatus(Enum):
@@ -17,7 +17,7 @@ class OrderStatus(Enum):
     INVALID = "invalid"
     EXPIRED = "expired"
 
-class OrderEntry(Base):
+class OrderEntity(Base):
     __tablename__ = 'order'
 
     profile_name: Mapped[str] = mapped_column(String)
@@ -34,4 +34,4 @@ class OrderEntry(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
     account_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('account.id'), init=False)
-    account: Mapped[AccountEntry] = relationship("AccountEntry", lazy="joined", default=None)
+    account: Mapped[AccountEntity] = relationship("AccountEntity", lazy="joined", default=None)
