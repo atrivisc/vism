@@ -1,6 +1,10 @@
+import base64
 import secrets
 import socket
 from typing import Optional
+
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
 from fastapi import APIRouter
 from starlette.responses import JSONResponse
 
@@ -10,7 +14,7 @@ from vism_acme.db.order import OrderEntity
 from vism_acme import VismACMEController
 from vism_acme.routers import AcmeRequest
 from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.util import get_client_ip, absolute_url
+from vism_acme.util import get_client_ip, absolute_url, fix_base64_padding
 
 
 class OrderRouter:
@@ -21,6 +25,48 @@ class OrderRouter:
         self.router.post("/new-order")(self.new_order)
         self.router.post("/orders/{account_kid}")(self.account_orders)
         self.router.post("/order/{order_id}")(self.order)
+        self.router.post("/order/{order_id}/finalize")(self.order_finalize)
+
+    async def order_finalize(self, request: AcmeRequest, order_id: str):
+        order = self.controller.database.get_order_by_id(order_id)
+        if not order:
+            raise ACMEProblemResponse(type="malformed", title="Invalid order ID.")
+
+        if order.account.id != request.state.account.id:
+            raise ACMEProblemResponse(type="unauthorized", title="Account is not authorized to access this order.")
+
+        if order.status != "ready":
+            order_authz_entities = self.controller.database.get_authz_by_order_id(order_id)
+            order_ready = all(authz.status == AuthzStatus.VALID for authz in order_authz_entities)
+            if order_ready:
+                order.status = "ready"
+                order = self.controller.database.save_to_db(order)
+
+        if order.status != "ready":
+            raise ACMEProblemResponse(type="orderNotReady", title="Order is not ready.")
+
+        csr_der_b64 = request.state.jws_envelope.payload.csr
+
+        try:
+            csr_data = base64.urlsafe_b64decode(fix_base64_padding(csr_der_b64))
+            csr = x509.load_der_x509_csr(data=csr_data, backend=default_backend())
+        except Exception as e:
+            raise ACMEProblemResponse(type="badCSR", title="Invalid CSR.", detail=str(e))
+
+        order_authz = self.controller.database.get_authz_by_order_id(order.id)
+
+        try:
+            csr_domains = [str(name.value) for name in csr.extensions.get_extension_for_class(x509.SubjectAlternativeName).value]
+        except Exception as e:
+            raise ACMEProblemResponse(type="badCSR", title="Failed to extract alt names from CSR.", detail=str(e))
+
+        authz_domains = {authz.identifier_value for authz in order_authz}
+        if set(csr_domains) != authz_domains:
+            raise ACMEProblemResponse(
+                type="badCSR",
+                title="CSR identifiers don't match authorized identifiers.",
+                detail=f"CSR domains: {csr_domains}, Authorized domains: {list(authz_domains)}"
+            )
 
     async def order(self, request: AcmeRequest, order_id: str):
         order = self.controller.database.get_order_by_id(order_id)
@@ -30,7 +76,7 @@ class OrderRouter:
         if order.account.id != request.state.account.id:
             raise ACMEProblemResponse(type="unauthorized", title="Account is not authorized to access this order.")
 
-        authz_entries = self.controller.database.get_authz_by_order_id(order_id)
+        authz_entities = self.controller.database.get_authz_by_order_id(order_id)
 
         return JSONResponse(
             content={
@@ -39,7 +85,7 @@ class OrderRouter:
                 "notBefore": order.not_before,
                 "notAfter": order.not_after,
                 "identifiers": [identifier.to_dict() for identifier in request.state.jws_envelope.payload.identifiers],
-                "authorizations": [absolute_url(request, f"/authz/{authz.id}") for authz in authz_entries],
+                "authorizations": [absolute_url(request, f"/authz/{authz.id}") for authz in authz_entities],
                 "finalize": absolute_url(request, f"/order/{order.id}/finalize"),
                 "certificate": absolute_url(request, f"/order/{order.id}/certificate") if order.cert_pem else None
             },

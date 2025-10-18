@@ -10,6 +10,7 @@ from urllib3.exceptions import MaxRetryError, NewConnectionError
 from vism_acme import VismACMEController
 from vism_acme.db import AuthzEntity, ChallengeEntity
 from vism_acme.db.authz import AuthzStatus, ChallengeStatus, ErrorEntity
+from vism_acme.db.order import OrderStatus
 
 
 class Http01Validator:
@@ -89,6 +90,7 @@ class Http01Validator:
         if error:
             self.challenge.status = ChallengeStatus.INVALID
             self.challenge.authz.status = AuthzStatus.INVALID
+            self.challenge.authz.order.status = OrderStatus.INVALID
 
             error_entity = ErrorEntity(type=error, detail=error_detail, title="Failed to validate challenge.")
             self.controller.database.save_to_db(error_entity)
@@ -96,5 +98,5 @@ class Http01Validator:
             self.challenge = self.controller.database.save_to_db(self.challenge)
             self.challenge.authz.error = error_entity
             self.challenge.authz = self.controller.database.save_to_db(self.challenge.authz)
-
+            self.challenge.authz.order = self.controller.database.save_to_db(self.challenge.authz.order)
 

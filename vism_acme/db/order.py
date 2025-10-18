@@ -9,7 +9,7 @@ from sqlalchemy.orm import mapped_column
 from vism_acme.db import AccountEntity
 from vism_acme.db.base import Base
 
-class OrderStatus(Enum):
+class OrderStatus(str, Enum):
     PENDING = "pending"
     PROCESSING = "processing"
     READY = "ready"

@@ -64,20 +64,30 @@ class AuthzRouter:
         if authz_entity.order.account.id != request.state.account.id:
             raise ACMEProblemResponse(type="unauthorized", title="Account is not authorized to access this authz.")
 
-        authz_expired = authz_entity.status == AuthzStatus.EXPIRED
-        if not authz_expired:
-            authz_expired = datetime.fromisoformat(authz_entity.expires) < datetime.now()
-            if authz_expired:
-                authz_entity.status = AuthzStatus.EXPIRED
-                authz_entity = self.controller.database.save_to_db(authz_entity)
+        if request.state.jws_envelope.payload and request.state.jws_envelope.payload.status:
+            authz_entity.status = request.state.jws_envelope.payload.status
+            authz_entity = self.controller.database.save_to_db(authz_entity)
+            authz_entity.order.status = OrderStatus.INVALID
+            authz_entity.order = self.controller.database.save_to_db(authz_entity.order)
 
-        order_expired = authz_entity.order.status == OrderStatus.EXPIRED
-        if not order_expired:
-            order_expiry = datetime.fromisoformat(authz_entity.order.expires)
-            order_expired = datetime.now() > order_expiry
-            if order_expired:
-                authz_entity.order.status = OrderStatus.EXPIRED
-                authz_entity.order = self.controller.database.save_to_db(authz_entity.order)
+        authz_deactivated = authz_entity.status == AuthzStatus.DEACTIVATED
+        order_invalid = authz_entity.order.status == OrderStatus.INVALID
+
+        if not authz_deactivated and not order_invalid:
+            authz_expired = authz_entity.status == AuthzStatus.EXPIRED
+            if not authz_expired:
+                authz_expired = datetime.fromisoformat(authz_entity.expires) < datetime.now()
+                if authz_expired:
+                    authz_entity.status = AuthzStatus.EXPIRED
+                    authz_entity = self.controller.database.save_to_db(authz_entity)
+
+            order_expired = authz_entity.order.status == OrderStatus.EXPIRED
+            if not order_expired:
+                order_expiry = datetime.fromisoformat(authz_entity.order.expires)
+                order_expired = datetime.now() > order_expiry
+                if order_expired:
+                    authz_entity.order.status = OrderStatus.EXPIRED
+                    authz_entity.order = self.controller.database.save_to_db(authz_entity.order)
 
         authz_challenges = self.controller.database.get_challenges_by_authz_id(authz_entity.id)
 

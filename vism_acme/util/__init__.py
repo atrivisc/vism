@@ -14,3 +14,10 @@ def get_client_ip(request):
     else:
         ip = request.client.host
     return ip
+
+
+def fix_base64_padding(base64_string):
+    padding_needed = len(base64_string) % 4
+    if padding_needed != 0:
+        base64_string += "=" * (4 - padding_needed)
+    return base64_string
