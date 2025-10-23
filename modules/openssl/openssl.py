@@ -1,4 +1,3 @@
-import logging
 import shutil
 import textwrap
 from dataclasses import dataclass
@@ -8,16 +7,16 @@ from typing import Optional
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 
+from modules import module_logger
 from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs
 from modules.openssl.db import OpenSSLData
-from vism.util import get_needed_libraries
-from vism_ca.ca import VismDatabase
+from shared.util import get_needed_libraries
+from vism_ca.ca.db import VismCADatabase
 from vism_ca.config import CertificateConfig
 from vism_ca.ca.crypto import CryptoModule
 from vism_ca.errors import GenCertException, GenCSRException, GenPKEYException, GenCRLException
 from jinja2 import Template, StrictUndefined
 
-logger = logging.getLogger("modules.openssl")
 
 @dataclass
 class OpenSSLCertConfig(CertificateConfig):
@@ -27,7 +26,7 @@ class OpenSSL(CryptoModule):
     config_path: str = "openssl"
     configClass: OpenSSLConfig = OpenSSLConfig
 
-    def __init__(self, chroot_dir: str, database: VismDatabase):
+    def __init__(self, chroot_dir: str, database: VismCADatabase):
         self.config: Optional[OpenSSLConfig] = None
         self.database = database
         super().__init__(chroot_dir)
@@ -55,7 +54,7 @@ class OpenSSL(CryptoModule):
         self.chroot.write_file(f"/tmp/{cert_config.name}/{cert_config.name}.conf", template.encode("utf-8"))
 
     def _create_crt_environment(self, cert_config: OpenSSLCertConfig, key_pem: str = None, csr_pem: str = None, crt_pem: str = None) -> None:
-        logger.debug(f"Creating crt environment for '{cert_config.name}'"),
+        module_logger.debug(f"Creating crt environment for '{cert_config.name}'"),
         self._write_openssl_config(cert_config)
 
         if key_pem:
@@ -69,7 +68,7 @@ class OpenSSL(CryptoModule):
             self.chroot.write_file(crt_path, crt_pem.encode("utf-8"))
 
     def _create_ca_environment(self, cert_config: OpenSSLCertConfig, key_pem: str = None, csr_pem: str = None, crt_pem: str = None):
-        logger.debug(f"Creating ca environment for '{cert_config.name}'"),
+        module_logger.debug(f"Creating ca environment for '{cert_config.name}'"),
 
         self._create_crt_environment(cert_config, key_pem, csr_pem, crt_pem)
         openssl_data = OpenSSLData.get_by_cert_name(self.database, cert_config.name)
@@ -98,7 +97,7 @@ class OpenSSL(CryptoModule):
         return openssl_data
 
     def create_chroot_environment(self):
-        logger.info("Generating chroot environment for openssl module."),
+        module_logger.info("Generating chroot environment for openssl module."),
         libraries = get_needed_libraries(self.openssl_path)
         self.chroot.create_folder("/tmp")
 
@@ -108,7 +107,7 @@ class OpenSSL(CryptoModule):
         self.chroot.copy_file(self.openssl_path)
 
     def generate_crl(self, cert_config: OpenSSLCertConfig, key_pem: str, crt_pem: str):
-        logger.info(f"Generating crl for '{cert_config.name}'"),
+        module_logger.info(f"Generating crl for '{cert_config.name}'"),
         openssl_data = self._create_ca_environment(cert_config, key_pem, crt_pem=crt_pem)
 
         if not openssl_data:
@@ -139,7 +138,7 @@ class OpenSSL(CryptoModule):
         return output.stdout
 
     def generate_csr(self, cert_config: OpenSSLCertConfig, key_pem: str) -> str:
-        logger.info(f"Generating csr for '{cert_config.name}'"),
+        module_logger.info(f"Generating csr for '{cert_config.name}'"),
 
         self._create_crt_environment(cert_config, key_pem)
 
@@ -158,7 +157,7 @@ class OpenSSL(CryptoModule):
         return output.stdout
 
     def generate_private_key(self, cert_config: OpenSSLCertConfig) -> tuple[str, str]:
-        logger.info(f"Generating private key for '{cert_config.name} 'with password."),
+        module_logger.info(f"Generating private key for '{cert_config.name} 'with password."),
         self._create_crt_environment(cert_config)
 
         key_config = cert_config.module_args.key
@@ -205,7 +204,7 @@ class OpenSSL(CryptoModule):
             self.chroot.delete_folder("/")
 
     def generate_ca_certificate(self, cert_config: OpenSSLCertConfig, key_pem: str, csr_pem: str) -> str:
-        logger.info(f"Generating ca certificate for '{cert_config.name}'")
+        module_logger.info(f"Generating ca certificate for '{cert_config.name}'")
 
         openssl_data = self._create_ca_environment(cert_config, key_pem, csr_pem)
         command = self._build_ca_sign_command(cert_config)
@@ -216,7 +215,7 @@ class OpenSSL(CryptoModule):
         return cert_pem
 
     def sign_csr(self, signing_cert_config: OpenSSLCertConfig, signing_crt_pem: str, signing_key_pem: str, csr_pem: str, module_args: OpenSSLModuleArgs) -> str:
-        logger.info(f"Signing csr with '{signing_cert_config.name}'")
+        module_logger.info(f"Signing csr with '{signing_cert_config.name}'")
         signing_openssl_data = self._create_ca_environment(signing_cert_config, crt_pem=signing_crt_pem, key_pem=signing_key_pem)
 
         self.chroot.write_file("/tmp/to_sign.csr", csr_pem.encode("utf-8"))
@@ -227,7 +226,7 @@ class OpenSSL(CryptoModule):
         return cert_pem
 
     def sign_ca_certificate(self, cert_config: OpenSSLCertConfig, signing_cert_config: OpenSSLCertConfig, signing_crt_pem: str, signing_key_pem: str, csr_pem: str) -> str:
-        logger.info(f"Signing ca certificate for '{cert_config.name}' with '{signing_cert_config.name}'")
+        module_logger.info(f"Signing ca certificate for '{cert_config.name}' with '{signing_cert_config.name}'")
 
         signing_openssl_data = self._create_ca_environment(signing_cert_config, crt_pem=signing_crt_pem, key_pem=signing_key_pem)
         openssl_data = self._create_ca_environment(cert_config, csr_pem=csr_pem)

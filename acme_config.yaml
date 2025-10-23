@@ -1,7 +1,57 @@
 ---
+rabbitmq_producer:
+  host: 127.0.0.1
+  port: 5672
+  user: acme-01
+  password: 'h&*42Ot170#8!%&0x@D8v%^4'
+  vhost: pki
+  csr_exchange: csr
+  cert_exchange: cert
+  data_encryption_key: "RSAACMEEncryptionKey"
+  data_encryption_module: "pkcs11"
+  data_validation_key: "ACMEValidationKey"
+  data_validation_module: "pkcs11"
+  consumer_encryption_public_key_pem: |
+    -----BEGIN PUBLIC KEY-----
+    MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQABhBw/IK63WDYhivzeyDHunv7uB/g
+    5FmfEKAaGNXcymCQzV/zr2R097vSaLpUegHOxlOXEyQuN9BDE3zi+L+QRMUB1Nyb
+    wQ0B1eay17c9mWYdU4A9/hPgtEcseyG4lPjA52drFoAJbs0bkSy9+JS3uBh2C7Ih
+    EfqgHoAmEjLmjQHdt10=
+    -----END PUBLIC KEY-----
+
+pkcs11:
+  private_keys:
+    - label: "RSAACMEEncryptionKey"
+      slot: "0x52df7a54"
+      slot_pin: "123456"
+    - label: "ACMEValidationKey"
+      signature_algorithm: "ECDSA"
+      hashing_algorithm: "SHA512"
+      slot: "0x52df7a54"
+      slot_pin: "123456"
+  chroot_dir: "/tmp/pkcs11"
+  lib_path: "/usr/local/lib/softhsm/libsofthsm2.so"
+  bin_path: "/usr/bin/pkcs11-tool"
+  additional_chroot_files:
+    - "/etc/softhsm2.conf"
+  additional_chroot_dirs:
+    - "/var/lib/softhsm"
+
+logging:
+  directory: "./logs/"
+  log_level: "DEBUG"
+  log_root: "vism_acme"
+
 vism_acme:
-  logging:
-    directory: "./logs/"
+  security:
+    data_validation:
+      enabled: true
+      module: "pkcs11"
+      validation_key: "ACMEValidationKey"
+    data_encryption:
+      enabled: true
+      module: "pkcs11"
+      encryption_key: "ACMEEncryptionKey"
 
   profiles:
     - name: "default"
@@ -24,6 +74,6 @@ vism_acme:
     username: 'vism_acme'
     password: 'vism_acme'
 
-  server:
+  api:
     host: 127.0.0.1
     port: 8080

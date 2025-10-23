@@ -7,9 +7,10 @@ from pydantic import field_validator
 from pydantic.dataclasses import dataclass as pydantic_dataclass
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
-from vism.util import is_valid_ip
+from shared.util import is_valid_ip
+from vism_acme.config import acme_logger
+from vism_acme.db import AccountEntity
 from vism_acme.schema.response import ACMEProblemResponse
-from vism_acme.structs.account import Account
 from vism_acme.util.enum import IdentifierType
 
 logger = logging.getLogger(__name__)
@@ -178,7 +179,7 @@ class AcmeAccountMiddleware(BaseHTTPMiddleware):
 
         return await call_next(request)
 
-    async def _get_account(self, request) -> Account:
+    async def _get_account(self, request) -> AccountEntity:
         jws_envelope = request.state.jws_envelope
 
         if any(request.url.path.startswith(path) for path in self.jwk_paths) and not jws_envelope.headers.jwk:

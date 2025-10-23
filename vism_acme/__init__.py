@@ -2,9 +2,10 @@ import os
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
-from vism.util.errors import VismException
+from shared.errors import VismException
+from shared.rabbitmq.producer import RabbitMQProducer
 from vism_acme.config import AcmeConfig
-from vism_acme.db import VismDatabase
+from vism_acme.db import VismAcmeDatabase
 from vism_acme.middleware import JWSMiddleware
 from vism_acme.middleware.acme_request import AcmeAccountMiddleware
 from vism_acme.schema.response import ACMEProblemResponse
@@ -16,12 +17,35 @@ class VismACMEController:
         config_file_path = os.environ.get('CONFIG_FILE_PATH', './acme_config.yaml')
 
         self.config = AcmeConfig(config_file_path)
-        self.database = VismDatabase(self.config.database)
+        self.validation_module = self.setup_validation_module()
+        self.encryption_module = self.setup_encryption_module()
+        self.database = VismAcmeDatabase(self.config.database, self.validation_module)
         self.nonce_manager = NonceManager(self.config)
+        self.rabbitmq_producer = RabbitMQProducer(self.config.raw_config_data)
         self.api = FastAPI()
         self.setup_exception_handlers()
         self.setup_middleware()
         self.setup_routes()
+
+    def setup_encryption_module(self):
+        encryption_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
+        encryption_module = encryption_module_imports.Module(
+            encryption_key=self.config.security.data_encryption.encryption_key,
+            validation_key=self.config.security.data_validation.validation_key
+        )
+        encryption_module.load_config(self.config.raw_config_data)
+
+        return encryption_module
+
+    def setup_validation_module(self):
+        validation_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
+        validation_module = validation_module_imports.Module(
+            encryption_key=self.config.security.data_encryption.encryption_key,
+            validation_key=self.config.security.data_validation.validation_key
+        )
+        validation_module.load_config(self.config.raw_config_data)
+
+        return validation_module
 
     def setup_middleware(self):
         self.api.add_middleware(

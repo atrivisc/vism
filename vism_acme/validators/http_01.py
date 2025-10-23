@@ -1,5 +1,3 @@
-import time
-import logging
 import requests
 from requests import ReadTimeout
 from requests.adapters import HTTPAdapter, Retry
@@ -8,7 +6,8 @@ from requests.exceptions import RequestException, TooManyRedirects, ChunkedEncod
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
 from vism_acme import VismACMEController
-from vism_acme.db import AuthzEntity, ChallengeEntity
+from vism_acme.config import acme_logger
+from vism_acme.db import ChallengeEntity
 from vism_acme.db.authz import AuthzStatus, ChallengeStatus, ErrorEntity
 from vism_acme.db.order import OrderStatus
 
@@ -19,6 +18,7 @@ class Http01Validator:
         self.challenge = challenge
 
     async def get_session(self):
+        acme_logger.debug("Creating new session for HTTP-01 validation.")
         retries_count = self.controller.config.http01.retries
         retry_delay_seconds = self.controller.config.http01.retry_delay_seconds
 
@@ -36,6 +36,7 @@ class Http01Validator:
         return session
 
     async def validate(self):
+        acme_logger.info(f"Validating challenge {self.challenge.id} with HTTP-01.")
         token = self.challenge.key_authorization.split(".")[0]
         validation_url = f"http://{self.challenge.authz.identifier_value}:{self.controller.config.http01.port}/.well-known/acme-challenge/{token}"
         timeout_seconds = self.controller.config.http01.timeout_seconds
@@ -48,7 +49,10 @@ class Http01Validator:
 
             try:
                 response = session.get(validation_url, timeout=timeout_seconds)
-                if response.status_code != 200 or response.text.strip() != self.challenge.key_authorization:
+                if len(response.text.strip()) > 90:
+                    error = "incorrectResponse"
+                    error_detail = f"Response from {validation_url} is too long."
+                elif response.status_code != 200 or response.text.strip() != self.challenge.key_authorization:
                     error = "incorrectResponse"
                     error_detail = f"Invalid response from {validation_url}: {response.status_code} {response.text}"
                 elif response.status_code == 200 and response.text.strip() == self.challenge.key_authorization:

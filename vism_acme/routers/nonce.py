@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from starlette.responses import Response
 from vism_acme import VismACMEController
+from vism_acme.config import acme_logger
 
 
 class NonceRouter:
@@ -12,5 +13,6 @@ class NonceRouter:
         self.router.get("/new-nonce")(self.new_nonce)
 
     async def new_nonce(self):
+        acme_logger.info(f"Received request to create new nonce.")
         nonce = await self.controller.nonce_manager.new_nonce()
         return Response(status_code=200, headers={"Replay-Nonce": nonce})

@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from vism_acme.db import AccountEntity
-from vism_acme.db.base import Base
+from shared.db import Base
 
 class OrderStatus(str, Enum):
     PENDING = "pending"
@@ -35,3 +35,15 @@ class OrderEntity(Base):
 
     account_id: Mapped[UUID] = mapped_column(Uuid, ForeignKey('account.id'), init=False)
     account: Mapped[AccountEntity] = relationship("AccountEntity", lazy="joined", default=None)
+
+    def to_dict(self):
+        return {
+            "profile_name": self.profile_name,
+            "status": self.status,
+            "not_before": self.not_before,
+            "not_after": self.not_after,
+            "expires": self.expires,
+            "csr_pem": self.csr_pem,
+            "crt_pem": self.crt_pem,
+            "account_id": str(self.account_id),
+        }

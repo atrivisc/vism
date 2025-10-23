@@ -5,7 +5,7 @@ from sqlalchemy import String, DateTime, func, ForeignKey, Uuid
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from vism_acme.db.base import Base
+from shared.db import Base
 from vism_acme.db.jwk import JWKEntity
 
 
@@ -24,3 +24,11 @@ class AccountEntity(Base):
     @property
     def jwk(self):
         return self._jwk.to_jwk()
+
+    def to_dict(self):
+        return {
+            "kid": self.kid,
+            "status": self.status,
+            "contact": self.contact,
+            "jwk_id": str(self.jwk_id),
+        }

@@ -1,10 +1,8 @@
-from dataclasses import dataclass
-from typing import Optional, Any
-
-import yaml
 import logging
+from dataclasses import dataclass
+from typing import Optional
 
-from vism import Config
+from shared.config import ModuleArgsConfig, Config
 from vism_ca.errors import CertConfigNotFound
 
 logger = logging.getLogger(__name__)
@@ -16,29 +14,6 @@ class Database:
     database: str = ""
     username: str = ""
     password: str = ""
-
-@dataclass
-class DataEncryption:
-    enabled: bool = False
-    password: str = ""
-
-@dataclass
-class Security:
-    chroot_base_dir: str
-    data_encryption: DataEncryption
-
-    def __post_init__(self):
-        self.data_encryption = DataEncryption(**self.data_encryption)
-
-@dataclass
-class Logging:
-    directory: str = "./logs/"
-    level: str = "INFO"
-    verbose: bool = False
-
-@dataclass
-class ModuleArgsConfig:
-    pass
 
 @dataclass
 class CertificateConfig:
@@ -60,20 +35,21 @@ class API:
     host: str = "0.0.0.0"
     port: int = 8080
 
-class APIConfig(Config):
-    def __init__(self, config_file_path: str):
-        super().__init__(config_file_path)
-
-        self.api: Optional[API] = API(**self.raw_config_data.get("api", {}))
+ca_logger = logging.getLogger("vism_ca")
 
 class CAConfig(Config):
+    log_conf = {
+        "log_root": "vism_ca",
+        "log_file": "vism_ca.log",
+        "error_file": "vism_ca_error.log",
+    }
+    conf_path = "vism_ca"
     def __init__(self, config_file_path: str):
         super().__init__(config_file_path)
 
         ca_config = self.raw_config_data.get("vism_ca", {})
         self.database = Database(**ca_config.get("database", {}))
-        self.logging = Logging(**ca_config.get("logging", {}))
-        self.security = Security(**ca_config.get("security", {}))
+        self.api: Optional[API] = API(**ca_config.get("api", {}))
         self.x509_certificates = [CertificateConfig(**cert) for cert in ca_config.get("x509_certificates", [])]
 
     def get_cert_config_by_name(self, cert_name: str) -> CertificateConfig:

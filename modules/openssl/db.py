@@ -2,10 +2,11 @@ from datetime import datetime
 from typing import Optional
 from sqlalchemy import String, Text, DateTime, func
 from sqlalchemy.orm import Mapped, mapped_column
-from vism_ca.ca.db import ModuleData, VismDatabase
+from shared.db import Base
+from vism_ca.ca.db import ModuleData
 
 
-class OpenSSLData(ModuleData):
+class OpenSSLData(ModuleData, Base):
     __tablename__ = 'openssl_data'
 
     cert_name: Mapped[str] = mapped_column(String)
@@ -17,6 +18,14 @@ class OpenSSLData(ModuleData):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
+    def to_dict(self):
+        return {
+            "cert_name": self.cert_name,
+            "cert_serial": self.cert_serial,
+            "database": self.database,
+            "serial": self.serial,
+            "crlnumber": self.crlnumber,
+        }
 
     @classmethod
     def get_by_cert_serial(cls, db, cert_serial: str) -> Optional['OpenSSLData']:

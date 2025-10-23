@@ -2,11 +2,9 @@ import logging
 from dataclasses import dataclass
 from typing import Optional
 
-from vism_ca.config import CertificateConfig, ModuleArgsConfig, CAConfig
-from vism_ca.ca.crypto.chroot import Chroot
-from vism_ca.logs import SensitiveDataFilter
-
-logger = logging.getLogger("crypto")
+from shared.logs import SensitiveDataFilter
+from vism_ca.config import CertificateConfig, ModuleArgsConfig, ca_logger
+from shared.chroot import Chroot
 
 @dataclass
 class CryptoConfig:
@@ -49,12 +47,11 @@ class CryptoModule:
 
     @classmethod
     def load_crypto_module(cls, module_name: str, ca) -> 'CryptoModule':
-        logger.debug(f"Loading crypto module {module_name} for '{module_name}'.")
+        ca_logger.debug(f"Loading crypto module {module_name} for '{module_name}'.")
         crypto_module_imports = CryptoModule.get_crypto_module_imports(module_name)
         crypto_module = crypto_module_imports.Module(ca.config.security.chroot_base_dir, ca.database)
         crypto_module.load_config(ca.config.raw_config_data)
         crypto_module.create_chroot_environment()
-        ca.database.create_module_tables(crypto_module_imports.ModuleData)
 
         SensitiveDataFilter.SENSITIVE_PATTERNS.update(crypto_module_imports.LOGGING_SENSITIVE_PATTERNS)
 

@@ -99,7 +99,7 @@ class AuthzRouter:
                 "type": authz_entity.identifier_type,
                 "value": authz_entity.identifier_value
             },
-            "challenges": [challenge.to_dict(request) for challenge in authz_challenges],
+            "challenges": [challenge.to_reply_dict(request) for challenge in authz_challenges],
         }
 
         if authz_entity.error:

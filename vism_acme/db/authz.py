@@ -4,7 +4,7 @@ from sqlalchemy import String, DateTime, func, ForeignKey, Uuid, Boolean, Text
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from vism_acme.db.base import Base
+from shared.db import Base
 from vism_acme.db.order import OrderEntity
 from enum import Enum
 
@@ -40,6 +40,13 @@ class ErrorEntity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
+    def to_dict(self):
+        return {
+            "type": self.type,
+            "title": self.title,
+            "detail": self.detail,
+        }
+
 
 class AuthzEntity(Base):
     __tablename__ = 'authz'
@@ -58,6 +65,17 @@ class AuthzEntity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
+    def to_dict(self):
+        return {
+            "identifier_type": self.identifier_type,
+            "identifier_value": self.identifier_value,
+            "status": self.status,
+            "wildcard": self.wildcard,
+            "expires": self.expires,
+            "error_id": str(self.error_id),
+            "order_id": str(self.order_id),
+        }
+
 class ChallengeEntity(Base):
     __tablename__ = 'challenge'
 
@@ -71,7 +89,15 @@ class ChallengeEntity(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
 
-    def to_dict(self, request: AcmeRequest = None):
+    def to_dict(self):
+        return {
+            "type": self.type,
+            "key_authorization": self.key_authorization,
+            "status": self.status,
+            "authz_id": str(self.authz_id),
+        }
+
+    def to_reply_dict(self, request: AcmeRequest = None):
         data = {
             "type": self.type,
             "token": self.key_authorization.split('.')[0],

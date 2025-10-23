@@ -3,7 +3,7 @@ from jwcrypto.jwk import JWK
 from sqlalchemy import Integer, String, Text
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from vism_acme.db.base import Base
+from shared.db import Base
 
 
 class JWKEntity(Base):

@@ -17,20 +17,6 @@ class AccountRouter:
         self.router = APIRouter()
         self.router.post("/new-account")(self.new_account)
         self.router.post("/account/{account_kid}")(self.update_account)
-        self.router.post("/account/{account_kid}/orders")(self.account_orders)
-
-    async def account_orders(self, request: AcmeRequest, account_kid: str):
-        account_orders = self.controller.database.get_orders_by_account_kid(account_kid)
-        return JSONResponse(
-            content={
-                "orders": [absolute_url(request, f"/order/{order.id}") for order in account_orders]
-            },
-            status_code=200,
-            headers={
-                "Content-Type": "application/json",
-                "Replay-Nonce": await self.controller.nonce_manager.new_nonce(request.state.account.id),
-            }
-        )
 
     async def update_account(self, request: AcmeRequest, account_kid: str):
         if not request.state.jws_envelope.payload:

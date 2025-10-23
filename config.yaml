@@ -116,15 +116,67 @@ openssl:
         default_md: "sha3-512"
         utf8: "yes"
 
+rabbitmq_consumer:
+  host: 127.0.0.1
+  port: 5672
+  user: ca-01
+  password: 'Uv2@D$3m&@313*5I*!k7P84$'
+  vhost: pki
+  csr_queue: csr
+  cert_queue: cert
+  data_encryption_key: "CAEncryptionKey"
+  data_encryption_module: "pkcs11"
+  data_validation_key: "CAValidationKey"
+  data_validation_module: "pkcs11"
+  producer_validation_public_key_pem: |
+    -----BEGIN PUBLIC KEY-----
+    MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQAnp/tjayUKU8li3bgFixrRlbWCart
+    +xiOSJ3m3ez5oPHFtgC/AW8+DrDA3yNhxSvqHp7J09PLmzw52dYVFHEdDpoBoPsx
+    gB1p4usgGrfuK6dfPDV8j8vO3saPK3hcXfuWrUiEsvXMXOrsYm1Do97gVaWSufLp
+    uW4e0cJX4e4PYMoZI2Q=
+    -----END PUBLIC KEY-----
+
+
+pkcs11:
+  private_keys:
+    - label: "CAEncryptionKey"
+      slot: "0x52df7a54"
+      slot_pin: "123456"
+    - label: "CAValidationKey"
+      signature_algorithm: "ECDSA"
+      hashing_algorithm: "SHA512"
+      slot: "0x52df7a54"
+      slot_pin: "123456"
+  chroot_dir: "/tmp/ca_pkcs11"
+  lib_path: "/usr/local/lib/softhsm/libsofthsm2.so"
+  bin_path: "/usr/bin/pkcs11-tool"
+  additional_chroot_files:
+    - "/etc/softhsm2.conf"
+    - "/usr/lib/opensc-pkcs11.so"
+  additional_chroot_dirs:
+    - "/var/lib/softhsm"
+
+logging:
+  directory: "./logs/"
+  log_level: "DEBUG"
+  log_root: "vism_ca"
+
 vism_ca:
   logging:
     directory: "./logs/"
 
   security:
-    chroot_base_dir: "/tmp/jail"
+    data_validation:
+      enabled: true
+      module: "pkcs11"
+      validation_key: "CAValidationKey"
+
     data_encryption:
       enabled: true
-      password: "54v%$C@#66v452c2463bvu3C%$#^@CX"
+      module: "pkcs11"
+      encryption_key: "CAEncryptionKey"
+
+    chroot_base_dir: "/tmp/jail"
 
   database:
     host: 127.0.0.1

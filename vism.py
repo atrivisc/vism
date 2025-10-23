@@ -1,4 +1,5 @@
 import argparse
+import asyncio
 import logging
 from typing import Any, Optional
 
@@ -41,7 +42,8 @@ def main() -> Optional[Any]:
 
     if args.component == 'ca':
         if args.ca_command == 'start':
-            uvicorn.run("vism_ca.api:app", host="0.0.0.0", port=8000, reload=True)
+            from vism_ca import main
+            asyncio.run(main())
 
     if args.component == 'acme':
         if args.acme_command == 'start':

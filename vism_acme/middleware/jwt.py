@@ -7,7 +7,7 @@ from pydantic.dataclasses import dataclass
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 
-from vism.util import b64u_decode
+from shared.util import b64u_decode
 from vism_acme.middleware.acme_request import AcmeProtectedPayload, AcmeProtectedHeader
 from vism_acme.schema.response import ACMEProblemResponse
 

@@ -1,7 +1,7 @@
 import secrets
 import asyncio
 from cachetools import TTLCache
-from vism_acme.config import AcmeConfig
+from vism_acme.config import AcmeConfig, acme_logger
 
 
 class NonceManager:
@@ -17,12 +17,15 @@ class NonceManager:
         async with self.lock:
             self.nonces[nonce] = account_id
 
+        acme_logger.debug(f"Created new nonce: {nonce}")
         return nonce
 
     async def pop_nonce(self, nonce: str, account_id: int = None) -> bool:
         async with self.lock:
             nonce_account = self.nonces.pop(nonce, None)
             if nonce_account is None or (nonce_account != account_id and nonce_account != -1):
+                acme_logger.debug(f"Failed to pop nonce: {nonce}")
                 return False
 
+            acme_logger.debug(f"Popped nonce: {nonce}")
             return True

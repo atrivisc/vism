@@ -1,5 +1,5 @@
 from shared.errors import VismException
 
 
-class JWTException(VismException):
+class RabbitMQError(VismException):
     pass

@@ -1,17 +1,5 @@
-import inspect
-import logging
+from shared.errors import VismException
 
-from vism.util.errors import VismException
-
-
-class ChrootWriteFileExists(VismException):
-    pass
-
-class ChrootWriteToFileException(VismException):
-    pass
-
-class ChrootOpenFileException(VismException):
-    pass
 
 class GenCertException(VismException):
     pass

@@ -1,5 +1,5 @@
-import inspect
 import logging
+from shared import shared_logger
 
 
 class VismException(RuntimeError):
@@ -12,16 +12,7 @@ class VismException(RuntimeError):
         self._log_error(message)
 
     def _log_error(self, message: str):
-        frame = inspect.currentframe()
-        try:
-            caller_frame = frame.f_back.f_back
-            caller_module = inspect.getmodule(caller_frame)
-            logger_name = caller_module.__name__ if caller_module else __name__
-        finally:
-            del frame
-
-        logger = logging.getLogger(logger_name)
-        logger.log(
+        shared_logger.log(
             self.log_level,
             f"{self.__class__.__name__}: {message}",
             exc_info=self.include_traceback
@@ -29,4 +20,13 @@ class VismException(RuntimeError):
 
 
 class VismDatabaseException(VismException):
+    pass
+
+class ChrootWriteFileExists(VismException):
+    pass
+
+class ChrootWriteToFileException(VismException):
+    pass
+
+class ChrootOpenFileException(VismException):
     pass
