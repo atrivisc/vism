@@ -61,6 +61,7 @@ class OrderRouter:
             await self.controller.rabbitmq_producer.send_message(rabbitmq_message, self.controller.rabbitmq_producer.config.csr_exchange, "csr")
             acme_logger.info(f"Sent CSR to RabbitMQ.")
         except Exception as e:
+            acme_logger.error(f"Failed to send CSR to RabbitMQ: {e}")
             raise ACMEProblemResponse(type="serverInternal", title="Internal error.", status_code=500)
 
         return await self._order_json_response(order, order_authz_entities, request, 200)

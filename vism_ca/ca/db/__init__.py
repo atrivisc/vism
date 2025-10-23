@@ -46,5 +46,4 @@ class CertificateEntity(Base):
 
 class VismCADatabase(VismDatabase):
     def get_cert_by_name(self, name: str) -> Optional[CertificateEntity]:
-        with self._get_session() as session:
-            return session.query(CertificateEntity).filter(CertificateEntity.name == name).first()
+        return self.get(CertificateEntity, CertificateEntity.name == name)

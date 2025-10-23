@@ -1,7 +1,10 @@
 import os
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
+from shared.data.validation import Data
 from shared.errors import VismException
 from shared.rabbitmq.producer import RabbitMQProducer
 from vism_acme.config import AcmeConfig
@@ -22,12 +25,19 @@ class VismACMEController:
         self.database = VismAcmeDatabase(self.config.database, self.validation_module)
         self.nonce_manager = NonceManager(self.config)
         self.rabbitmq_producer = RabbitMQProducer(self.config.raw_config_data)
-        self.api = FastAPI()
+        self.api = FastAPI(lifespan=self.lifespan)
         self.setup_exception_handlers()
         self.setup_middleware()
         self.setup_routes()
 
-    def setup_encryption_module(self):
+    @asynccontextmanager
+    async def lifespan(self, api: FastAPI):
+        yield
+        self.validation_module.cleanup(full=True)
+        self.encryption_module.cleanup(full=True)
+        await self.rabbitmq_producer.close_all_connections()
+
+    def setup_encryption_module(self) -> Data:
         encryption_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
         encryption_module = encryption_module_imports.Module(
             encryption_key=self.config.security.data_encryption.encryption_key,
@@ -37,7 +47,7 @@ class VismACMEController:
 
         return encryption_module
 
-    def setup_validation_module(self):
+    def setup_validation_module(self) -> Data:
         validation_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
         validation_module = validation_module_imports.Module(
             encryption_key=self.config.security.data_encryption.encryption_key,

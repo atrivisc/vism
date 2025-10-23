@@ -1,11 +1,5 @@
-import json
-import os
 from dataclasses import dataclass
-from typing import Optional, Tuple
-from cryptography.hazmat.primitives import serialization, hashes
-from cryptography.hazmat.primitives.asymmetric import rsa, padding, ec, ed25519
-from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
-from shared import shared_logger
+from typing import Optional
 from shared.errors import VismException
 
 class DataError(VismException):
@@ -23,7 +17,7 @@ class Data:
     configClass = DataConfig
     config_path: str = None
 
-    def __init__(self, encryption_key: str, validation_key: str):
+    def __init__(self, *, encryption_key: str = None, validation_key: str = None):
         self.config: Optional[DataConfig] = None
         self.encryption_key = encryption_key
         self.validation_key = validation_key
@@ -31,14 +25,23 @@ class Data:
     def load_config(self, config_data: dict) -> None:
         self.config = self.configClass(**config_data.get(self.config_path, {}))
 
-    def decrypt(self, data: str) -> str:
+    def decrypt(self, data: str) -> bytes:
         raise NotImplemented()
 
-    def encrypt(self, data: str) -> str:
+    def decrypt_for_peer(self, data: str, peer_public_key_pem: str) -> bytes:
         raise NotImplemented()
 
-    def sign(self, data: str) -> str:
+    def encrypt(self, data: str) -> bytes:
         raise NotImplemented()
 
-    def verify(self, data: str, signature: str) -> bool:
+    def encrypt_for_peer(self, data: str, peer_public_key_pem: str) -> bytes:
         raise NotImplemented()
+
+    def sign(self, data: str) -> bytes:
+        raise NotImplemented()
+
+    def verify(self, data: str, signature_b64u: str) -> bool:
+        raise NotImplemented()
+
+    def cleanup(self, full: bool = False) -> None:
+        pass

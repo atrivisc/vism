@@ -5,10 +5,8 @@ from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from shared.db import Base
-from vism_acme.db.order import OrderEntity
+from .order import OrderEntity
 from enum import Enum
-
-from vism_acme.routers import AcmeRequest
 from vism_acme.util import absolute_url
 from vism_acme.util.enum import IdentifierType
 
@@ -97,7 +95,7 @@ class ChallengeEntity(Base):
             "authz_id": str(self.authz_id),
         }
 
-    def to_reply_dict(self, request: AcmeRequest = None):
+    def to_reply_dict(self, request = None):
         data = {
             "type": self.type,
             "token": self.key_authorization.split('.')[0],

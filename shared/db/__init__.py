@@ -1,3 +1,4 @@
+import base64
 import json
 from uuid import UUID, uuid4
 
@@ -46,7 +47,8 @@ class Base(MappedAsDataclass, DeclarativeBase):
         shared_logger.info(f"Signing {self.__class__.__name__} {self.id}")
         data = self.to_dict()
         data_json = json.dumps(data, sort_keys=True)
-        return validation_module.sign(data_json)
+        signature_bytes = validation_module.sign(data_json)
+        return base64.urlsafe_b64encode(signature_bytes).decode("utf-8")
 
 
 class VismDatabase:

@@ -1,3 +1,4 @@
+import base64
 import logging
 from dataclasses import dataclass
 from typing import Optional
@@ -79,7 +80,7 @@ class Certificate:
                 raise GenCertException(f"Signing certificate '{self.signing_cert.name}' not found in database.")
 
             signing_private_key_encrypted = self.signing_cert.db_entity.pkey_pem
-            signing_private_key_decrypted = self.ca.encryption_module.decrypt(signing_private_key_encrypted)
+            signing_private_key_decrypted = self.ca.encryption_module.decrypt(signing_private_key_encrypted).decode("utf-8")
 
             crt_pem = self.signing_cert.crypto_module.sign_ca_certificate(
                 self.config,
@@ -94,7 +95,8 @@ class Certificate:
             crt_pem = self.crypto_module.generate_ca_certificate(self.config, unencrypted_private_key, csr_pem)
 
         crl_pem = self.crypto_module.generate_crl(self.config, unencrypted_private_key, crt_pem)
-        private_key_pem = self.ca.encryption_module.encrypt(unencrypted_private_key)
+        private_key_pem_encrypted = self.ca.encryption_module.encrypt(unencrypted_private_key)
+        private_key_pem = base64.urlsafe_b64encode(private_key_pem_encrypted).decode("utf-8")
         db_entity = CertificateEntity(
             name=self.name,
             crt_pem=crt_pem,

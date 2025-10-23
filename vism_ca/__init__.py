@@ -26,9 +26,16 @@ class VismCA:
         self.rabbitmq_consumer = RabbitMQConsumer(self, self.config.raw_config_data)
 
     async def run(self):
-        await self.init_certificates()
-        while True:
+        try:
+            await self.init_certificates()
             await self.rabbitmq_consumer.consume_csr()
+        except asyncio.CancelledError:
+            ca_logger.info("Ca shutting down")
+
+        try:
+            await asyncio.Future()
+        finally:
+            pass
 
     def setup_encryption_module(self):
         encryption_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
@@ -64,32 +71,20 @@ class VismCA:
                 if cert is not None:
                     cert.crypto_module.cleanup(full=True)
 
-def run_task(loop, coro):
-    new_task = not futures.isfuture(coro)
-    future = tasks.ensure_future(coro, loop=loop)
-    future.add_done_callback(_run_until_complete_cb)
-    try:
-        loop.run_forever()
-    except:
-        if new_task and future.done() and not future.cancelled():
-            future.exception()
-        raise
-    finally:
-        future.remove_done_callback(_run_until_complete_cb)
-    if not future.done():
-        raise RuntimeError('Event loop stopped before Future completed.')
 
-    return future.result()
-
-async def main():
+def main():
     ca = VismCA()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.new_event_loop()
+    future = tasks.ensure_future(ca.run(), loop=loop)
     try:
-        run_task(loop, ca.run())
+        loop.run_until_complete(future)
     except KeyboardInterrupt:
-        print("Stopped by user")
+        pass
     finally:
-        loop.close()
+        if not future.done():
+            future.cancel()
+        if loop.is_running():
+            loop.close()
 
 if __name__ == '__main__':
-    asyncio.run(main())
+    main()

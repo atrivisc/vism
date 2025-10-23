@@ -109,6 +109,11 @@ def setup_logger(config: LoggingConfig):
             },
         },
         'loggers': {
+            "aio_pika": {
+                "level": "DEBUG",
+                "handlers": ["uvicorn"],
+                "propagate": True,
+            },
             f'{config.log_root}': {
                 'level': config.log_level,
                 'handlers': ['file', 'error_file'],

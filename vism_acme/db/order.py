@@ -6,7 +6,7 @@ from sqlalchemy import Integer, String, DateTime, func, ForeignKey, Text, Uuid
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
-from vism_acme.db import AccountEntity
+from .account import AccountEntity
 from shared.db import Base
 
 class OrderStatus(str, Enum):

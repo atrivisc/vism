@@ -209,7 +209,6 @@ class PKCS11Key:
             iv = os.urandom(12)
 
             tag = hashlib.sha256(self.key_label.encode("utf-8") if self.key_label else self.key_id.encode("utf-8")).digest()[:16]
-            print(tag)
             ciphertext = aesgcm.encrypt(iv, data, tag)
             combined = iv + ciphertext
 
@@ -217,11 +216,25 @@ class PKCS11Key:
         else:
             raise PKCS11Error(f"Unsupported encryption algorithm: {encryption_algorithm}")
 
-    def validate_signature(self, data: bytes, signature_der: bytes, signature_algorithm: Union[ECDSA]) -> bool:
-        digest = self.get_digest(data, signature_algorithm.algorithm)
+    def validate_signature(self, data: bytes, signature_der: bytes, signature_algorithm: Union[ECDSA]):
+        data_digest = self.get_digest(data, signature_algorithm.algorithm)
+        self.chroot.write_file("/tmp/data.in", data_digest)
 
         if isinstance(signature_algorithm, ECDSA):
-            self.public_key.verify(signature_der, digest, signature_algorithm)
+            self.chroot.write_file("/tmp/sig.in", signature_der)
+            self.chroot.write_file("/tmp/sig_data.in", data_digest)
+            method = f"ECDSA-{signature_algorithm.algorithm.name.upper()}"
+            result = self.chroot.run_command(
+                f"{self.bin} --verify "
+                f"--mechanism {method} "
+                f"--signature-file /tmp/sig.in "
+                f"--signature-format sequence "
+                f"-i /tmp/sig_data.in "
+                f"{self.to_command_args()}"
+            )
+            if result.returncode != 0:
+                print(result.stderr)
+                raise PKCS11Error(f"Failed to verify signature: {result.stderr}")
         else:
             raise PKCS11Error(f"Unsupported signature algorithm: {signature_algorithm}")
 
@@ -242,7 +255,6 @@ class PKCS11Key:
             f"{self.to_command_args()} -s"
         )
         if result.returncode != 0:
-            print(result.stderr)
             raise PKCS11Error(f"Failed to sign data: {result.stderr}")
 
         sig_bytes = self.chroot.read_file_bytes("/tmp/sig.out")
@@ -314,27 +326,27 @@ class PKCS11(Data):
             else:
                 raise PKCS11FailedToSignData(f"Unsupported signature algorithm: {key.config.signature_algorithm}")
 
-    def decrypt(self, data_b64: str) -> str:
+    def decrypt(self, data_b64: str) -> bytes:
         module_logger.debug(f"Decrypting data with '{self.encryption_key}'")
-        with self._get_key(self.validation_key) as key:
+        with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
                 encryption_algorithm = ECDH()
                 data = base64.urlsafe_b64decode(data_b64)
                 decrypted_data = key.decrypt(data, encryption_algorithm)
-            return decrypted_data.decode("utf-8")
+            return decrypted_data
 
 
-    def encrypt(self, data: str) -> str:
+    def encrypt(self, data: str) -> bytes:
         module_logger.debug(f"Encrypting data with '{self.encryption_key}'")
-        with self._get_key(self.validation_key) as key:
+        with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
                 encryption_algorithm = ECDH()
                 encrypted_data = key.encrypt(data.encode("utf-8"), encryption_algorithm)
-            return base64.urlsafe_b64encode(encrypted_data).decode()
+            return encrypted_data
 
-    def encrypt_for_peer(self, data: str, peer_public_key_pem: str = None) -> str:
+    def encrypt_for_peer(self, data: str, peer_public_key_pem: str = None) -> bytes:
         module_logger.debug(f"Encrypting data for peer with '{self.encryption_key}'")
-        with self._get_key(self.validation_key) as key:
+        with self._get_key(self.encryption_key) as key:
             if isinstance(key.public_key, ec.EllipticCurvePublicKey):
                 encryption_algorithm = ECDH()
                 if not peer_public_key_pem:
@@ -343,7 +355,7 @@ class PKCS11(Data):
                 peer_public_key_der = serialization.load_pem_public_key(peer_public_key_pem.encode("utf-8")).public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
                 encrypted_data = key.encrypt_for_peer(data.encode("utf-8"), encryption_algorithm, peer_public_key_der)
 
-            return base64.urlsafe_b64encode(encrypted_data).decode()
+            return encrypted_data
 
     @contextmanager
     def _get_key(self, key_label: str):
@@ -357,7 +369,7 @@ class PKCS11(Data):
         finally:
             self.cleanup()
 
-    def sign(self, data: str) -> str:
+    def sign(self, data: str) -> bytes:
         module_logger.debug(f"Signing data with '{self.validation_key}'")
         with self._get_key(self.validation_key) as key:
             if key.config.signature_algorithm == SignatureAlgorithmsName.ECDSA:
@@ -366,8 +378,7 @@ class PKCS11(Data):
             else:
                 raise PKCS11FailedToSignData(f"Unsupported signature algorithm: {key.config.signature_algorithm}")
 
-            signature_b64 = base64.urlsafe_b64encode(signature_der).decode("utf-8")
-            return signature_b64
+            return signature_der
 
     def cleanup(self, full: bool = False):
         module_logger.debug(f"Cleaning up PKCS11 environment. Full: {full}")

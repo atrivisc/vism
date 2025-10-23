@@ -7,7 +7,7 @@ rabbitmq_producer:
   vhost: pki
   csr_exchange: csr
   cert_exchange: cert
-  data_encryption_key: "RSAACMEEncryptionKey"
+  data_encryption_key: "ACMEEncryptionKey"
   data_encryption_module: "pkcs11"
   data_validation_key: "ACMEValidationKey"
   data_validation_module: "pkcs11"
@@ -21,7 +21,7 @@ rabbitmq_producer:
 
 pkcs11:
   private_keys:
-    - label: "RSAACMEEncryptionKey"
+    - label: "ACMEEncryptionKey"
       slot: "0x52df7a54"
       slot_pin: "123456"
     - label: "ACMEValidationKey"

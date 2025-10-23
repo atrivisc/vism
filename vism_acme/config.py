@@ -11,6 +11,7 @@ from pydantic.dataclasses import dataclass
 from typing import Optional
 
 from shared.config import Config
+from shared.db import Database
 from shared.util import is_valid_subnet, snake_to_camel
 from vism_acme.schema.response import ACMEProblemResponse
 from vism_acme.util import fix_base64_padding

@@ -43,7 +43,7 @@ def main() -> Optional[Any]:
     if args.component == 'ca':
         if args.ca_command == 'start':
             from vism_ca import main
-            asyncio.run(main())
+            main()
 
     if args.component == 'acme':
         if args.acme_command == 'start':
