@@ -212,7 +212,6 @@ class OpenSSL(CryptoModule):
         cert_pem = self._execute_ca_sign(command, openssl_data, cert_config)
 
         self.cleanup()
-
         return cert_pem
 
     def sign_csr(self, signing_cert_config: OpenSSLCertConfig, signing_crt_pem: str, signing_key_pem: str, csr_pem: str, module_args: OpenSSLModuleArgs) -> str:
@@ -223,6 +222,7 @@ class OpenSSL(CryptoModule):
         command = self._build_csr_sign_command(signing_cert_config, module_args)
 
         cert_pem = self._execute_ca_sign(command, signing_openssl_data, signing_cert_config)
+        self.cleanup()
 
         return cert_pem
 

@@ -12,7 +12,8 @@ from aio_pika.abc import AbstractRobustChannel, AbstractIncomingMessage
 from aiormq import AMQPConnectionError
 
 from shared import shared_logger
-from shared.data.exchange import DataExchange, DataExchangeConfig
+from shared.data.exchange import DataExchange, DataExchangeConfig, DataExchangeCSRMessage, DataExchangeMessage, \
+    DataExchangeCertMessage
 from shared.data.validation import Data
 from modules.rabbitmq.errors import RabbitMQError
 from vism_ca.ca.crypto.certificate import Certificate
@@ -82,20 +83,22 @@ class RabbitMQ(DataExchange):
             await connection.close()
         self.open_connections = {}
 
-    async def send_csr(self, data: bytes):
-        shared_logger.debug(f"Sending message to RabbitMQ exchange '{self.config.csr_exchange}'")
-        encrypted_message_body = self.encryption_module.encrypt_for_peer(data, self.config.peer_encryption_public_key_pem)
+    async def send_data(self, message: DataExchangeMessage, exchange: str, message_type: str, routing_key: str):
+        shared_logger.debug(f"Sending message to RabbitMQ exchange '{exchange}'")
+
+        data_json = message.to_json().encode("utf-8")
+        encrypted_message_body = self.encryption_module.encrypt_for_peer(data_json, self.config.peer_encryption_public_key_pem)
         encrypted_message_signature = self.validation_module.sign(encrypted_message_body)
 
         async with self._get_channel() as channel:
             await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
-            exchange = await channel.get_exchange(self.config.csr_exchange)
+            exchange = await channel.get_exchange(exchange)
 
             message: Message = Message(
                 body=encrypted_message_body,
                 headers={
-                    "X-Vism-Message-Type": "csr",
+                    "X-Vism-Message-Type": message_type,
                     "X-Vism-Signature": base64.urlsafe_b64encode(encrypted_message_signature).decode("utf-8"),
                     "Content-Type": "application/octet-stream",
                 }
@@ -103,8 +106,29 @@ class RabbitMQ(DataExchange):
 
             await exchange.publish(
                 message=message,
-                routing_key="csr",
+                routing_key=routing_key,
             )
+
+    async def send_cert(self, message: DataExchangeCertMessage):
+        await self.send_data(message, self.config.cert_exchange, "cert", "cert")
+
+    async def send_csr(self, message: DataExchangeCSRMessage):
+        await self.send_data(message, self.config.csr_exchange, "csr", "csr")
+
+    async def receive_cert(self, *, retry_count: int = 0):
+        shared_logger.debug(f"Receiving message from RabbitMQ queue '{self.config.cert_queue}'")
+        async with self._get_channel() as channel:
+            await channel.initialize(timeout=30)
+            await channel.set_qos(prefetch_count=1)
+            queue = await channel.get_queue(self.config.cert_queue)
+
+            try:
+                await queue.consume(self.handle_message, consumer_tag=socket.gethostname())
+            except AMQPConnectionError:
+                if retry_count >= self.config.max_retries:
+                    raise
+                await asyncio.sleep(self.config.retry_delay_seconds)
+                return self.receive_cert(retry_count=retry_count + 1)
 
     async def receive_csr(self, *, retry_count: int = 0):
         shared_logger.debug(f"Receiving message from RabbitMQ queue '{self.config.csr_queue}'")
@@ -127,11 +151,25 @@ class RabbitMQ(DataExchange):
             self.validation_module.verify(message.body, message.headers["X-Vism-Signature"])
             decrypted_body = self.encryption_module.decrypt(message.body)
             if message.headers["X-Vism-Message-Type"] == "csr":
-                csr_json = json.loads(decrypted_body)
-                ca = Certificate(self.controller, csr_json["ca"])
-                chain = ca.sign_csr(csr_json["csr_pem"], csr_json.get("module_args", {}), acme=True)
+                csr_message = DataExchangeCSRMessage(**json.loads(decrypted_body))
+                ca = Certificate(self.controller, csr_message.ca_name)
+                chain = ca.sign_csr(csr_message.csr_pem, csr_message.module_args, acme=True)
 
-            print(chain)
+                cert_message = DataExchangeCertMessage(
+                    chain=chain,
+                    order_id=csr_message.order_id,
+                    ca_name=csr_message.ca_name,
+                    profile_name=csr_message.profile_name,
+                    original_signature_b64=message.headers["X-Vism-Signature"],
+                    original_encrypted_b64=base64.urlsafe_b64encode(message.body).decode("utf-8"),
+                )
+                await self.send_cert(cert_message)
+            elif message.headers["X-Vism-Message-Type"] == "cert":
+                cert_message = DataExchangeCertMessage(**json.loads(decrypted_body))
+                original_encrypted = base64.urlsafe_b64decode(cert_message.original_encrypted_b64)
+                self.validation_module.verify(original_encrypted, cert_message.original_signature_b64)
+                await self.controller.handle_chain_from_ca(cert_message)
+
 
     @asynccontextmanager
     async def _get_channel(self, **kwargs) -> AsyncGenerator[AbstractRobustChannel]:

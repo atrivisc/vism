@@ -342,7 +342,6 @@ class PKCS11(Data):
                 decrypted_data = key.decrypt_for_peer(data, encryption_algorithm, peer_public_key_der)
             return decrypted_data
 
-
     def encrypt(self, data: bytes) -> bytes:
         module_logger.debug(f"Encrypting data with '{self.encryption_key}'")
         with self._get_key(self.encryption_key) as key:

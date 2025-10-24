@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from uuid import UUID
-from sqlalchemy import String, DateTime, func, ForeignKey, Uuid, Boolean, Text
+from sqlalchemy import String, DateTime, func, ForeignKey, Uuid, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
@@ -9,6 +9,7 @@ from .order import OrderEntity
 from enum import Enum
 from vism_acme.util import absolute_url
 from vism_acme.util.enum import IdentifierType
+from .error import ErrorEntity
 
 
 class AuthzStatus(str, Enum):
@@ -27,24 +28,6 @@ class ChallengeStatus(str, Enum):
 
 class ChallengeType(str, Enum):
     HTTP = "http-01"
-
-class ErrorEntity(Base):
-    __tablename__ = 'error'
-
-    type: Mapped[str] = mapped_column(String, nullable=True, default=None)
-    title: Mapped[str] = mapped_column(String, nullable=True, default=None)
-    detail: Mapped[str] = mapped_column(Text, nullable=True, default=None)
-
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
-
-    def to_dict(self):
-        return {
-            "type": self.type,
-            "title": self.title,
-            "detail": self.detail,
-        }
-
 
 class AuthzEntity(Base):
     __tablename__ = 'authz'

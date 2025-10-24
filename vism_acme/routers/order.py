@@ -1,9 +1,10 @@
-import json
 import secrets
+from typing import Any
+
 from cryptography.hazmat.primitives import serialization
 from fastapi import APIRouter
-from starlette.responses import JSONResponse
-
+from starlette.responses import JSONResponse, Response
+from shared.data.exchange import DataExchangeCSRMessage
 from vism_acme.config import acme_logger
 from vism_acme.db.authz import ChallengeEntity, AuthzEntity, AuthzStatus, ChallengeStatus
 from vism_acme.db.order import OrderEntity, OrderStatus
@@ -22,6 +23,22 @@ class OrderRouter:
         self.router.post("/orders/{account_kid}")(self.account_orders)
         self.router.post("/order/{order_id}")(self.order)
         self.router.post("/order/{order_id}/finalize")(self.order_finalize)
+        self.router.post("/order/{order_id}/certificate")(self.order_certificate)
+
+    async def order_certificate(self, request: AcmeRequest, order_id: str):
+        acme_logger.info(f"Received request to get order {order_id} certificate.")
+        order = await self._validate_order_request(order_id, request)
+        if order.status != OrderStatus.VALID:
+            raise ACMEProblemResponse(type="orderNotReady", title="Order is not ready.", status_code=403)
+
+        return Response(
+            content=order.crt_pem,
+            headers={
+                "Content-Type": "application/pem-certificate-chain",
+            },
+            status_code=200,
+            media_type="application/pem-certificate-chain",
+        )
 
     async def order_finalize(self, request: AcmeRequest, order_id: str):
         acme_logger.info(f"Received request to finalize order {order_id}.")
@@ -52,14 +69,16 @@ class OrderRouter:
 
         acme_logger.info(f"Validated order {order_id} finalization. Sending CSR to RabbitMQ.")
 
-        rabbitmq_message = json.dumps({
-            "csr_pem": csr_pem.decode("utf-8"),
-            "ca": profile.ca,
-            "module_args": profile.module_args
-        })
+        rabbitmq_message = DataExchangeCSRMessage(
+            csr_pem=csr_pem.decode("utf-8"),
+            ca_name=profile.ca,
+            profile_name=profile.name,
+            module_args=profile.module_args,
+            order_id=order_id,
+        )
 
         try:
-            await self.controller.data_exchange_module.send_csr(rabbitmq_message.encode("utf-8"))
+            await self.controller.data_exchange_module.send_csr(rabbitmq_message)
             acme_logger.info(f"Sent CSR to RabbitMQ.")
         except Exception as e:
             acme_logger.error(f"Failed to send CSR to RabbitMQ: {e}")
@@ -155,17 +174,27 @@ class OrderRouter:
         return await self._order_json_response(order, authz_entities, request, 201)
 
     async def _order_json_response(self, order: OrderEntity, order_authz_entities: list[AuthzEntity], request: AcmeRequest, status_code: int) -> JSONResponse:
+        response: dict[str, Any] = {
+            "status": order.status,
+            "expires": order.expires,
+            "notBefore": order.not_before,
+            "notAfter": order.not_after,
+            "identifiers": [{"type": authz.identifier_type, "value": authz.identifier_value} for authz in order_authz_entities],
+            "authorizations": [absolute_url(request, f"/authz/{authz.id}") for authz in order_authz_entities],
+            "finalize": absolute_url(request, f"/order/{order.id}/finalize"),
+            "certificate": absolute_url(request, f"/order/{order.id}/certificate") if order.crt_pem else None
+        }
+
+        if order.status == OrderStatus.INVALID and order.error:
+            status_code = 400
+            response["error"] = {
+                "type": f"urn:ietf:params:acme:error:{order.error.type}",
+                "title": order.error.title,
+                "detail": order.error.detail,
+            }
+
         return JSONResponse(
-            content={
-                "status": order.status,
-                "expires": order.expires,
-                "notBefore": order.not_before,
-                "notAfter": order.not_after,
-                "identifiers": [{"type": authz.identifier_type, "value": authz.identifier_value} for authz in order_authz_entities],
-                "authorizations": [absolute_url(request, f"/authz/{authz.id}") for authz in order_authz_entities],
-                "finalize": absolute_url(request, f"/order/{order.id}/finalize"),
-                "certificate": absolute_url(request, f"/order/{order.id}/certificate") if order.crt_pem else None
-            },
+            content=response,
             status_code=status_code,
             headers={
                 "Content-Type": "application/json",

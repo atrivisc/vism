@@ -70,6 +70,20 @@ vism_acme:
   profiles:
     - name: "default"
       ca: "service_ca"
+      ca_pem: |
+        -----BEGIN CERTIFICATE-----
+        MIIB7zCCAaGgAwIBAgIUBW0qHaEiN1mWZ1oR6HYHU1HuwckwBQYDK2VwMB8xCzAJ
+        BgNVBAYTAkVFMRAwDgYDVQQDDAdSb290IENBMB4XDTI1MTAyNDA3MTk1NFoXDTM1
+        MTAyMjA3MTk1NFowIjELMAkGA1UEBhMCRUUxEzARBgNVBAMMClNlcnZpY2UgQ0Ew
+        KjAFBgMrZXADIQDAxNiphGzvEmzLLX8WS73DJzbgG7UhzUH9eJIagneGO6OB6zCB
+        6DBEBggrBgEFBQcBAQQ4MDYwNAYIKwYBBQUHMAKGKGh0dHBzOi8vY2Euc2FhcnRz
+        Lmxhbi9wdWJsaWMvcm9vdF9jYS5jcnQwEgYDVR0TAQH/BAgwBgEB/wIBADAOBgNV
+        HQ8BAf8EBAMCAQYwHQYDVR0OBBYEFLf4rlvfMSKh+B8J+HR1om9Lcd1WMDwGA1Ud
+        HwQ1MDMwMaAvoC2GK2h0dHBzOi8vY2Euc2FhcnRzLmxhbi9wdWJsaWMvc2Vydmlj
+        ZV9jYS5jcmwwHwYDVR0jBBgwFoAUxepM/pERPcN9H1ILBja2+Yhr8sQwBQYDK2Vw
+        A0EARAmFTmZNJhWQLEDE8xjYZBPXL/0MO3HF2lFKOCvktvZIvUewF0v3cuukkVIb
+        4RgHDgZsaGfZLUqx53n6qM5YCA==
+        -----END CERTIFICATE-----
       default: true
       acl:
         - domain: "www.example.com"

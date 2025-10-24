@@ -33,6 +33,7 @@ class DomainValidation:
 class Profile:
     name: str
     ca: str
+    ca_pem: str
     module_args: dict = None
     enabled: bool = True
     default: bool = False

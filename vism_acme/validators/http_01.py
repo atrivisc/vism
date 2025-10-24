@@ -5,10 +5,10 @@ from requests.exceptions import RequestException, TooManyRedirects, ChunkedEncod
     RetryError, SSLError, ProxyError, ConnectTimeout, ConnectionError, Timeout
 from urllib3.exceptions import MaxRetryError, NewConnectionError
 
-from vism_acme import VismACMEController
+from vism_acme import VismACMEController, ErrorEntity
 from vism_acme.config import acme_logger
 from vism_acme.db import ChallengeEntity
-from vism_acme.db.authz import AuthzStatus, ChallengeStatus, ErrorEntity
+from vism_acme.db.authz import AuthzStatus, ChallengeStatus
 from vism_acme.db.order import OrderStatus
 
 
