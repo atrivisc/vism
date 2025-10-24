@@ -41,13 +41,13 @@ class Base(MappedAsDataclass, DeclarativeBase):
         shared_logger.info(f"Validating {self.__class__.__name__} {self.id}")
         data = self.to_dict()
         data_json = json.dumps(data, sort_keys=True)
-        validation_module.verify(data_json, self.signature)
+        validation_module.verify(data_json.encode("utf-8"), self.signature)
 
     def sign(self, validation_module: Data):
         shared_logger.info(f"Signing {self.__class__.__name__} {self.id}")
         data = self.to_dict()
         data_json = json.dumps(data, sort_keys=True)
-        signature_bytes = validation_module.sign(data_json)
+        signature_bytes = validation_module.sign(data_json.encode("utf-8"))
         return base64.urlsafe_b64encode(signature_bytes).decode("utf-8")
 
 

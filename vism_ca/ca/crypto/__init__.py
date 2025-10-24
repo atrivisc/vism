@@ -1,4 +1,3 @@
-import logging
 from dataclasses import dataclass
 from typing import Optional
 
@@ -13,6 +12,7 @@ class CryptoConfig:
 class CryptoModule:
     config_path: str
     configClass: CryptoConfig
+    moduleArgsClass: ModuleArgsConfig = ModuleArgsConfig
 
     def __init__(self, chroot_dir: str):
         self.chroot = Chroot(chroot_dir)

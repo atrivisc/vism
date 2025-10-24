@@ -26,6 +26,10 @@ class Security:
     data_encryption: DataEncryption = None
     chroot_base_dir: str = None
 
+@dataclass
+class DataExchange:
+    module: str
+
 class Config:
     log_conf = {}
     conf_path: str = ""
@@ -36,6 +40,7 @@ class Config:
 
         path_conf = self.raw_config_data.get(self.conf_path, {})
         self.security = Security(**path_conf.get("security", {}))
+        self.data_exchange = DataExchange(**path_conf.get("data_exchange", {}))
 
     def setup_logging(self):
         logs.setup_logger(

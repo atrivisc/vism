@@ -1,9 +1,9 @@
+import json
 import secrets
 from cryptography.hazmat.primitives import serialization
 from fastapi import APIRouter
 from starlette.responses import JSONResponse
 
-from shared.rabbitmq.message import RabbitmqCSRMessage
 from vism_acme.config import acme_logger
 from vism_acme.db.authz import ChallengeEntity, AuthzEntity, AuthzStatus, ChallengeStatus
 from vism_acme.db.order import OrderEntity, OrderStatus
@@ -52,13 +52,14 @@ class OrderRouter:
 
         acme_logger.info(f"Validated order {order_id} finalization. Sending CSR to RabbitMQ.")
 
-        rabbitmq_message = RabbitmqCSRMessage(
-            csr_pem=csr_pem.decode("utf-8"),
-            module_args=profile.module_args
-        )
+        rabbitmq_message = json.dumps({
+            "csr_pem": csr_pem.decode("utf-8"),
+            "ca": profile.ca,
+            "module_args": profile.module_args
+        })
 
         try:
-            await self.controller.rabbitmq_producer.send_message(rabbitmq_message, self.controller.rabbitmq_producer.config.csr_exchange, "csr")
+            await self.controller.data_exchange_module.send_csr(rabbitmq_message.encode("utf-8"))
             acme_logger.info(f"Sent CSR to RabbitMQ.")
         except Exception as e:
             acme_logger.error(f"Failed to send CSR to RabbitMQ: {e}")

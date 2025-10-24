@@ -25,6 +25,7 @@ class OpenSSLCertConfig(CertificateConfig):
 class OpenSSL(CryptoModule):
     config_path: str = "openssl"
     configClass: OpenSSLConfig = OpenSSLConfig
+    moduleArgsClass: OpenSSLModuleArgs = OpenSSLModuleArgs
 
     def __init__(self, chroot_dir: str, database: VismCADatabase):
         self.config: Optional[OpenSSLConfig] = None

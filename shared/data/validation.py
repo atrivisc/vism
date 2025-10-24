@@ -25,22 +25,22 @@ class Data:
     def load_config(self, config_data: dict) -> None:
         self.config = self.configClass(**config_data.get(self.config_path, {}))
 
-    def decrypt(self, data: str) -> bytes:
+    def decrypt(self, data: bytes) -> bytes:
         raise NotImplemented()
 
-    def decrypt_for_peer(self, data: str, peer_public_key_pem: str) -> bytes:
+    def decrypt_for_peer(self, data: bytes, peer_public_key_pem: str) -> bytes:
         raise NotImplemented()
 
-    def encrypt(self, data: str) -> bytes:
+    def encrypt(self, data: bytes) -> bytes:
         raise NotImplemented()
 
-    def encrypt_for_peer(self, data: str, peer_public_key_pem: str) -> bytes:
+    def encrypt_for_peer(self, data: bytes, peer_public_key_pem: str) -> bytes:
         raise NotImplemented()
 
-    def sign(self, data: str) -> bytes:
+    def sign(self, data: bytes) -> bytes:
         raise NotImplemented()
 
-    def verify(self, data: str, signature_b64u: str) -> bool:
+    def verify(self, data: bytes, signature_b64u: str) -> bool:
         raise NotImplemented()
 
     def cleanup(self, full: bool = False) -> None:

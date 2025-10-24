@@ -1,11 +1,9 @@
 import asyncio
 import logging
 import os
-from asyncio import futures, tasks
-from asyncio.base_events import _run_until_complete_cb  # type: ignore[attr-defined]
-
+from asyncio import tasks
+from shared.data.exchange import DataExchange
 from shared.data.validation import Data
-from shared.rabbitmq.consumer import RabbitMQConsumer
 from vism_ca.ca.crypto import CryptoModule
 from vism_ca.ca.crypto.certificate import Certificate
 from vism_ca.config import CAConfig
@@ -20,15 +18,14 @@ class VismCA:
 
         self.validation_module: Data = self.setup_validation_module()
         self.encryption_module: Data = self.setup_encryption_module()
+        self.data_exchange_module = self.setup_data_exchange_module()
 
         self.database = VismCADatabase(self.config.database, self.validation_module)
-
-        self.rabbitmq_consumer = RabbitMQConsumer(self, self.config.raw_config_data)
 
     async def run(self):
         try:
             await self.init_certificates()
-            await self.rabbitmq_consumer.consume_csr()
+            await self.data_exchange_module.receive_csr()
         except asyncio.CancelledError:
             ca_logger.info("Ca shutting down")
 
@@ -36,6 +33,13 @@ class VismCA:
             await asyncio.Future()
         finally:
             pass
+
+    def setup_data_exchange_module(self) -> DataExchange:
+        data_exchange_module_imports = __import__(f'modules.{self.config.data_exchange.module}', fromlist=['Module', 'ModuleConfig'])
+        data_exchange_module = data_exchange_module_imports.Module(self)
+        data_exchange_module.load_config(self.config.raw_config_data)
+
+        return data_exchange_module
 
     def setup_encryption_module(self):
         encryption_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])

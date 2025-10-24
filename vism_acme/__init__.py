@@ -4,9 +4,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
 
+from shared.data.exchange import DataExchange
 from shared.data.validation import Data
 from shared.errors import VismException
-from shared.rabbitmq.producer import RabbitMQProducer
 from vism_acme.config import AcmeConfig
 from vism_acme.db import VismAcmeDatabase
 from vism_acme.middleware import JWSMiddleware
@@ -22,9 +22,9 @@ class VismACMEController:
         self.config = AcmeConfig(config_file_path)
         self.validation_module = self.setup_validation_module()
         self.encryption_module = self.setup_encryption_module()
+        self.data_exchange_module = self.setup_data_exchange_module()
         self.database = VismAcmeDatabase(self.config.database, self.validation_module)
         self.nonce_manager = NonceManager(self.config)
-        self.rabbitmq_producer = RabbitMQProducer(self.config.raw_config_data)
         self.api = FastAPI(lifespan=self.lifespan)
         self.setup_exception_handlers()
         self.setup_middleware()
@@ -35,7 +35,7 @@ class VismACMEController:
         yield
         self.validation_module.cleanup(full=True)
         self.encryption_module.cleanup(full=True)
-        await self.rabbitmq_producer.close_all_connections()
+        await self.data_exchange_module.cleanup(full=True)
 
     def setup_encryption_module(self) -> Data:
         encryption_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])
@@ -46,6 +46,13 @@ class VismACMEController:
         encryption_module.load_config(self.config.raw_config_data)
 
         return encryption_module
+
+    def setup_data_exchange_module(self) -> DataExchange:
+        data_exchange_module_imports = __import__(f'modules.{self.config.data_exchange.module}', fromlist=['Module', 'ModuleConfig'])
+        data_exchange_module = data_exchange_module_imports.Module(self)
+        data_exchange_module.load_config(self.config.raw_config_data)
+
+        return data_exchange_module
 
     def setup_validation_module(self) -> Data:
         validation_module_imports = __import__(f'modules.{self.config.security.data_validation.module}', fromlist=['Module', 'ModuleConfig'])

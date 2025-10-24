@@ -1,22 +1,31 @@
 ---
-rabbitmq_producer:
+rabbitmq:
   host: 127.0.0.1
   port: 5672
   user: acme-01
   password: 'h&*42Ot170#8!%&0x@D8v%^4'
   vhost: pki
+  csr_queue: csr
+  cert_queue: cert
   csr_exchange: csr
   cert_exchange: cert
   data_encryption_key: "ACMEEncryptionKey"
   data_encryption_module: "pkcs11"
   data_validation_key: "ACMEValidationKey"
   data_validation_module: "pkcs11"
-  consumer_encryption_public_key_pem: |
+  peer_encryption_public_key_pem: |
     -----BEGIN PUBLIC KEY-----
-    MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQABhBw/IK63WDYhivzeyDHunv7uB/g
-    5FmfEKAaGNXcymCQzV/zr2R097vSaLpUegHOxlOXEyQuN9BDE3zi+L+QRMUB1Nyb
-    wQ0B1eay17c9mWYdU4A9/hPgtEcseyG4lPjA52drFoAJbs0bkSy9+JS3uBh2C7Ih
-    EfqgHoAmEjLmjQHdt10=
+    MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQAuijEP0rb6mTZn/kO70Qw1Mfm7d+Q
+    THl9zcj7bxvfR5LofPxJCQOyZMMbcx6UeGy4lX80ZZ2v5ozlouSo0ntT1I4Au4e/
+    MpNlt+XYc9cmzuR/6zVqIJ8Nf+ZTi+g9yK+zZ6WAEVuAryPeh487PbmKnRBvS+cl
+    Ud73W4QiGGIYzb+NW5w=
+    -----END PUBLIC KEY-----
+  peer_validation_public_key_pem: |
+    -----BEGIN PUBLIC KEY-----
+    MIGbMBAGByqGSM49AgEGBSuBBAAjA4GGAAQAqDMROiqQizFXXpfPkdcv9pntS06B
+    Vy3kOODsf7TuZbEBPYY5ODJq4KtewP8PDN6ggj7yPfOKkX9UBzUZwBbpTAkB9ykN
+    MXTlhVXV0J/dstlEasO6JetEIGKDefbQ4SqUWGwgZ7mA+QO6nrOl22iAON/YVQYe
+    95iANsLjkSF/K+Oh2ms=
     -----END PUBLIC KEY-----
 
 pkcs11:
@@ -52,6 +61,11 @@ vism_acme:
       enabled: true
       module: "pkcs11"
       encryption_key: "ACMEEncryptionKey"
+
+  data_exchange:
+    module: "rabbitmq"
+    module_args:
+      csr_exchange: "csr"
 
   profiles:
     - name: "default"
