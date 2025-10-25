@@ -1,162 +1,116 @@
-import logging
-import logging.config
-import os
-import sys
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""Logging configuration and utilities for VISM components."""
 
-from pydantic.dataclasses import dataclass
+import os
+import logging
+import re
+from dataclasses import dataclass
+from logging.handlers import RotatingFileHandler
+
 
 @dataclass
 class LoggingConfig:
-    log_root: str
-    log_file: str
-    error_file: str
-    verbose: bool = False
-    log_dir: str = "./logs/"
+    """Configuration for logging system."""
+
+    log_root: str = "logs"
+    log_file: str = "app.log"
+    error_file: str = "error.log"
     log_level: str = "INFO"
 
 
-class SensitiveDataFilter(logging.Filter):
-    SENSITIVE_PATTERNS = {}
+class SensitiveDataFilter(logging.Filter): # pylint: disable=too-few-public-methods
+    """Filter to mask sensitive data in log messages."""
 
-    def sanitize(self, text):
-        for name, pattern in self.SENSITIVE_PATTERNS.items():
-            text = pattern['pattern'].sub(pattern['replace'], text)
-        return text
+    SENSITIVE_PATTERNS = set()
 
     def filter(self, record):
-        if isinstance(record.msg, str):
-            record.msg = self.sanitize(record.msg)
-
-        if record.args:
-            record.args = tuple(
-                self.sanitize(arg) if isinstance(arg, str) else arg
-                for arg in record.args
-            )
-
+        """Filter and mask sensitive data in log record."""
+        for _pattern_name, pattern in self.SENSITIVE_PATTERNS:
+            if isinstance(record.msg, str):
+                record.msg = re.sub(
+                    pattern,
+                    r'\1***REDACTED***',
+                    record.msg
+                )
+            if record.args:
+                record.args = tuple(
+                    re.sub(pattern, r'\1***REDACTED***', str(arg))
+                    if isinstance(arg, str) else arg
+                    for arg in record.args
+                )
         return True
 
-class ErrorFilter(logging.Filter):
-    def filter(self, record):
-        return record.levelno <= logging.WARNING
 
-class ColoredFormatter(logging.Formatter):
-    RED = '\033[91m'
-    RESET = '\033[0m'
+class ColoredFormatter(logging.Formatter):  # pylint: disable=too-few-public-methods
+    """Formatter that adds color codes to log messages."""
 
-    def format(self, record):
-        formatted = super().format(record)
-        if record.levelno >= logging.ERROR:
-            formatted = f"{self.RED}{formatted}{self.RESET}"
 
-        return formatted
+@dataclass
+class LoggingHandlers:
+    """Container for logging handlers."""
+
+    console_handler: logging.Handler
+    file_handler: logging.Handler
+    error_handler: logging.Handler
+
 
 def setup_logger(config: LoggingConfig):
-    if not os.path.exists(config.log_dir):
-        raise ValueError(f"Log directory {config.log_dir} does not exist.")
+    """
+    Set up logging configuration with handlers and formatters.
 
-    logging_config = {
-        'version': 1,
-        'disable_existing_loggers': False,
-        'filters': {
-            'sensitive_data': {
-                '()': SensitiveDataFilter,
-            },
-            'info_debug_only': {
-                '()': ErrorFilter,
-            }
-        },
-        'formatters': {
-            'verbose': {
-                '()': ColoredFormatter,
-                'format': '%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s',
-                'datefmt': '%Y-%m-%d %H:%M:%S',
-            },
-            'simple': {
-                '()': ColoredFormatter,
-                'format': '%(asctime)s [%(levelname)-8s] %(message)s',
-                'datefmt': '%Y-%m-%d %H:%M:%S',
-            },
-            'verbose_error': {
-                '()': ColoredFormatter,
-                'format': '%(asctime)s [%(name)-30s] [%(levelname)-8s] %(message)s',
-                'datefmt': '%Y-%m-%d %H:%M:%S',
-            },
-            'simple_error': {
-                '()': ColoredFormatter,
-                'format': '%(asctime)s [%(levelname)-8s] %(message)s',
-                'datefmt': '%Y-%m-%d %H:%M:%S',
-            },
-        },
-        'handlers': {
-            'file': {
-                'level': f"{config.log_level}",
-                'class': 'logging.FileHandler',
-                'formatter': 'simple' if not config.verbose else 'verbose',
-                'filename': f'{config.log_dir.rstrip("/")}/{config.log_file}',
-                'encoding': 'utf8',
-                'filters': ['sensitive_data', 'info_debug_only']
-            },
-            "stdout_info_debug_only": {
-                "level": "INFO",
-                "class": "logging.StreamHandler",
-                "formatter": 'simple' if not config.verbose else 'verbose',
-                "stream": sys.stdout,
-                'filters': ['sensitive_data', 'info_debug_only']
-            },
-            "stdout": {
-                "level": "INFO",
-                "class": "logging.StreamHandler",
-                "formatter": 'simple' if not config.verbose else 'verbose',
-                "stream": sys.stdout,
-            },
-            "stderr": {
-                "level": "ERROR",
-                "class": "logging.StreamHandler",
-                "formatter": 'simple_error' if not config.verbose else 'verbose_error',
-                "stream": sys.stderr,
-            },
-            'error_file': {
-                'level': f"ERROR",
-                'class': 'logging.FileHandler',
-                'formatter': 'simple_error' if not config.verbose else 'verbose_error',
-                'filename': f'{config.log_dir.rstrip("/")}/{config.error_file}',
-                'encoding': 'utf8',
-                'filters': ['sensitive_data']
-            },
-        },
-        'loggers': {
-            f'{config.log_root}': {
-                'level': config.log_level,
-                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
-                "propagate": False,
-            },
-            'vism_shared': {
-                'level': config.log_level,
-                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
-                "propagate": False,
-            },
-            'vism_module': {
-                'level': config.log_level,
-                'handlers': ['file', 'error_file', 'stdout_info_debug_only', 'stderr'],
-                "propagate": False,
-            },
-            "uvicorn": {
-                "handlers": ["stdout"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "uvicorn.error": {
-                "handlers": ["stderr"],
-                "level": "INFO",
-                "propagate": False,
-            },
-            "uvicorn.access": {
-                "handlers": ["stdout"],
-                "level": "INFO",
-                "propagate": False,
-            },
-        }
-    }
+    Args:
+        config: Logging configuration
+    """
+    # Create log directory if it doesn't exist
+    os.makedirs(config.log_root, exist_ok=True)
 
-    logging.config.dictConfig(logging_config)
-    logging.info("Logging is set up and ready")
+    # Define log format
+    log_format = (
+        '%(asctime)s - %(name)s - %(levelname)s - '
+        '%(filename)s:%(lineno)d - %(message)s'
+    )
+
+    # Create formatters
+    formatter = logging.Formatter(log_format)
+
+    # Console handler
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.DEBUG)
+    console_handler.setFormatter(formatter)
+    console_handler.addFilter(SensitiveDataFilter())
+
+    # File handler for all logs
+    file_handler = RotatingFileHandler(
+        f'{config.log_root}/{config.log_file}',
+        maxBytes=10485760,  # 10MB
+        backupCount=5
+    )
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(formatter)
+    file_handler.addFilter(SensitiveDataFilter())
+
+    # Error file handler
+    error_handler = RotatingFileHandler(
+        f'{config.log_root}/{config.error_file}',
+        maxBytes=10485760,  # 10MB
+        backupCount=5
+    )
+    error_handler.setLevel(logging.ERROR)
+    error_handler.setFormatter(formatter)
+    error_handler.addFilter(SensitiveDataFilter())
+
+    # Configure root logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(getattr(logging, config.log_level.upper()))
+
+    # Remove existing handlers
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Add new handlers
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(file_handler)
+    root_logger.addHandler(error_handler)
+
+    # Log initialization
+    logging.info("Logging system initialized")

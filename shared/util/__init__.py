@@ -1,3 +1,6 @@
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""Utility functions for VISM components."""
+
 import ipaddress
 import re
 import subprocess
@@ -12,20 +15,25 @@ from starlette.requests import Request
 
 
 def is_valid_ip(ip_str):
+    """Check if a string is a valid IP address."""
     try:
         ipaddress.ip_address(ip_str)
         return True
     except ValueError:
         return False
 
+
 def is_valid_subnet(subnet_str):
+    """Check if a string is a valid subnet."""
     try:
         ipaddress.ip_network(subnet_str, strict=False)
         return True
     except ValueError:
         return False
 
+
 def derive_key(password: str, salt: bytes) -> bytes:
+    """Derive a cryptographic key from password and salt using PBKDF2."""
     kdf = PBKDF2HMAC(
         algorithm=hashes.SHA256(),
         length=32,
@@ -37,18 +45,25 @@ def derive_key(password: str, salt: bytes) -> bytes:
 
 
 def aes256_encrypt(data: str, password: str) -> str:
+    """Encrypt data using AES256 with password-derived key."""
     salt = os.urandom(16)
     key = derive_key(password, salt)
     iv = os.urandom(16)
     padder = padding.PKCS7(128).padder()
     padded_data = padder.update(data.encode()) + padder.finalize()
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    cipher = Cipher(
+        algorithms.AES(key),
+        modes.CBC(iv),
+        backend=default_backend()
+    )
     encryptor = cipher.encryptor()
     encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
 
     return base64.b64encode(salt + iv + encrypted_data).decode()
 
+
 def aes256_decrypt(encrypted_data: str, password: str) -> str:
+    """Decrypt AES256 encrypted data using password-derived key."""
     encrypted_data = base64.b64decode(encrypted_data)
 
     salt = encrypted_data[:16]
@@ -57,7 +72,11 @@ def aes256_decrypt(encrypted_data: str, password: str) -> str:
 
     key = derive_key(password, salt)
 
-    cipher = Cipher(algorithms.AES(key), modes.CBC(iv), backend=default_backend())
+    cipher = Cipher(
+        algorithms.AES(key),
+        modes.CBC(iv),
+        backend=default_backend()
+    )
     decryptor = cipher.decryptor()
 
     decrypted_data = decryptor.update(encrypted_data) + decryptor.finalize()
@@ -67,14 +86,17 @@ def aes256_decrypt(encrypted_data: str, password: str) -> str:
 
     return unpadded_data.decode()
 
+
 def get_needed_libraries(binary_path) -> list[str]:
+    """Get list of shared libraries needed by a binary."""
     command = f"ldd {binary_path} | grep -oP '\\s/([^\\s])*'"
     result = subprocess.run(
         command,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         text=True,
-        shell=True
+        shell=True,
+        check=False
     )
 
     return list(
@@ -84,7 +106,9 @@ def get_needed_libraries(binary_path) -> list[str]:
         )
     )
 
+
 def b64u_decode(data: str) -> bytes:
+    """Decode base64url encoded data."""
     if data is None:
         return b""
 
@@ -101,21 +125,29 @@ def b64u_decode(data: str) -> bytes:
 
     return base64.urlsafe_b64decode(data)
 
+
 def snake_to_camel(name):
+    """Convert snake_case to camelCase."""
     split = name.split('_')
     return split[0] + ''.join(word.capitalize() for word in split[1:])
 
+
 def camel_to_snake(name):
+    """Convert camelCase to snake_case."""
     name = re.sub('(.)([A-Z][a-z]+)', r'\1_\2', name)
     return re.sub('([a-z0-9])([A-Z])', r'\1_\2', name).lower()
 
+
 def absolute_url(request: Request, path: str) -> str:
+    """Build absolute URL from request and path."""
     base = str(request.base_url).rstrip("/")
     if not path.startswith("/"):
         path = "/" + path
     return f"{base}{path}"
 
+
 def get_client_ip(request: Request):
+    """Get client IP address from request, respecting X-Forwarded-For."""
     x_forwarded_for = request.headers.get("X-Forwarded-For")
     if x_forwarded_for:
         ip = x_forwarded_for.split(",")[0].strip()
@@ -125,6 +157,7 @@ def get_client_ip(request: Request):
 
 
 def fix_base64_padding(base64_string):
+    """Fix base64 string padding if missing."""
     padding_needed = len(base64_string) % 4
     if padding_needed != 0:
         base64_string += "=" * (4 - padding_needed)

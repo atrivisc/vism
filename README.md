@@ -1,21 +1,27 @@
-TODO:
-1. Log to file and console 
+# Vism
 
-Acme.sh command
+## Requirements
 
-install:
-./acme.sh --install  \
---home /data/acme.sh/ \
---config-home /data/acme.sh/data \
---cert-home  /data/acme.sh/certs/ \
---accountemail  "my@example.com" \
---no-profile
+- Python 3.13.7
+- PostgreSQL 17 database
+- RabbitMQ 4
 
-standalone:
-./acme.sh --standalone \
---listen-v6 \
---always-force-new-domain-key \
---ecc \
---httpport 80 \
---server http://127.0.0.1:8080/directory \
---issue -d example.com -d www.example.com
+## Setup
+
+1) Create and activate a virtual environment:
+```bash
+python3.13 -m venv .venv
+source .venv/bin/activate
+```
+2) Install packages:
+```bash
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+```
+## Quick Use
+TODO
+
+## Configuration
+TODO
+
+## Architecture

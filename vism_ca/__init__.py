@@ -1,3 +1,6 @@
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# pylint: disable=missing-module-docstring
+
 from .errors import CertConfigNotFound
 from .db import VismCADatabase, CertificateEntity, ModuleData
 from .config import CAConfig, CertificateConfig, ca_logger
@@ -17,5 +20,6 @@ __all__ = [
     'Certificate',
     'CertConfigNotFound',
     'ModuleArgsConfig',
-    'ModuleData'
+    'ModuleData',
+    'CryptoConfig',
 ]

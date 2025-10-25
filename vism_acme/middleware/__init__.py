@@ -1,5 +1,16 @@
-from .acme_request import AcmeAccountMiddleware
-from .acme_request import AcmeProtectedPayload, AcmeIdentifier, AcmeProtectedHeader
-from .jwt import JWSMiddleware
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# pylint: disable=missing-module-docstring
 
-__all__ = ["JWSMiddleware", "AcmeProtectedPayload", "AcmeIdentifier", "AcmeProtectedHeader", 'AcmeAccountMiddleware']
+from .acme_request import AcmeAccountMiddleware
+from .acme_request import AcmeProtectedPayload, AcmeIdentifier, \
+    AcmeProtectedHeader
+from .jwt import JWSMiddleware, AcmeJWSEnvelope
+
+__all__ = [
+    "JWSMiddleware",
+    "AcmeProtectedPayload",
+    "AcmeIdentifier",
+    "AcmeProtectedHeader",
+    'AcmeAccountMiddleware',
+    "AcmeJWSEnvelope"
+]

@@ -1,34 +1,48 @@
+"""Configuration module for VISM ACME server."""
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+
 import base64
 import socket
 import ipaddress
 import logging
+from typing import Optional
+
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import rsa
-from cryptography.x509 import CertificateSigningRequest
+from cryptography.x509 import CertificateSigningRequest, Extension
 from pydantic import field_validator
 from pydantic.dataclasses import dataclass
-from typing import Optional
+
 from shared.config import Config
 from shared.db import Database
-from shared.util import is_valid_subnet, snake_to_camel, fix_base64_padding
+from shared.util import (
+    is_valid_subnet,
+    snake_to_camel,
+    fix_base64_padding
+)
 from vism_acme import ACMEProblemResponse
 
-logger = logging.getLogger(__name__)
 
 @dataclass
 class DomainValidation:
+    """Domain validation configuration for access control."""
+
     domain: str = None
     clients: list[str] = None
 
     def to_dict(self):
+        """Convert domain validation to dictionary."""
         return {
             "domain": self.domain,
             "clients": self.clients,
         }
 
+
 @dataclass
-class Profile:
+class Profile:  # pylint: disable=too-many-instance-attributes
+    """ACME profile configuration."""
+
     name: str
     ca: str
     ca_pem: str
@@ -46,101 +60,202 @@ class Profile:
     acl: list[DomainValidation] = None
     cluster: list[str] = None
 
-    def validate_csr(self, csr_der_b64: str, ordered_identifiers: list[str]) -> CertificateSigningRequest:
+    def validate_csr(
+            self,
+            csr_der_b64: str,
+            ordered_identifiers: list[str]
+    ) -> CertificateSigningRequest:
+        # pylint: disable=too-many-branches
+        """Validate a Certificate Signing Request."""
         try:
-            csr_data = base64.urlsafe_b64decode(fix_base64_padding(csr_der_b64))
-            csr = x509.load_der_x509_csr(data=csr_data, backend=default_backend())
-        except Exception as e:
-            raise ACMEProblemResponse(type="badCSR", title="Invalid CSR.", detail=str(e))
+            csr_data = base64.urlsafe_b64decode(
+                fix_base64_padding(csr_der_b64)
+            )
+            csr = x509.load_der_x509_csr(
+                data=csr_data,
+                backend=default_backend()
+            )
+        except Exception as exc:
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="Invalid CSR.",
+                detail=str(exc)
+            ) from exc
 
         if isinstance(csr.public_key(), rsa.RSAPublicKey):
             if csr.public_key().key_size < 2048:
-                raise ACMEProblemResponse(type="badCSR", title="RSA key too small.", detail=f"RSA key size must be at least 2048 bits, got {csr.public_key().key_size}")
+                raise ACMEProblemResponse(
+                    error_type="badCSR",
+                    title="RSA key too small.",
+                    detail=(
+                        f"RSA key size must be at least 2048 bits, "
+                        f"got {csr.public_key().key_size}"
+                    )
+                )
 
         if not csr.is_signature_valid:
-            raise ACMEProblemResponse(type="badCSR", title="Invalid CSR signature.")
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="Invalid CSR signature."
+            )
 
         try:
-            csr_domains = [str(name.value) for name in
-                           csr.extensions.get_extension_for_class(x509.SubjectAlternativeName).value]
-        except Exception as e:
-            raise ACMEProblemResponse(type="badCSR", title="Failed to extract alt names from CSR.", detail=str(e))
+            csr_domains = [
+                str(name.value) for name in
+                csr.extensions.get_extension_for_class(
+                    x509.SubjectAlternativeName
+                ).value
+            ]
+        except Exception as exc:
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="Failed to extract alt names from CSR.",
+                detail=str(exc)
+            ) from exc
 
         if set(csr_domains) != set(ordered_identifiers):
             raise ACMEProblemResponse(
-                type="badCSR",
+                error_type="badCSR",
                 title="CSR identifiers don't match authorized identifiers.",
-                detail=f"CSR domains: {csr_domains}, Authorized domains: {ordered_identifiers}"
+                detail=(
+                    f"CSR domains: {csr_domains}, "
+                    f"Authorized domains: {ordered_identifiers}"
+                )
             )
 
-        csr_extensions: list[x509.Extension] = csr.extensions.__iter__()
-        for ext in csr_extensions:
-            if ext.oid.dotted_string not in self.allowed_extension_oids:
-                raise ACMEProblemResponse(type="badCSR", title=f"CSR contains forbidden extension: {ext.oid}.")
-
-            if ext.oid == x509.oid.ExtensionOID.BASIC_CONSTRAINTS:
-                if ext.value.ca:
-                    raise ACMEProblemResponse(type="badCSR", title="CSR must not be for a CA certificate.")
-                if ext.value.path_length and ext.value.path_length != 0:
-                    raise ACMEProblemResponse(type="badCSR", title="CSR must have a path length of 0.")
-                if not ext.critical:
-                    raise ACMEProblemResponse(type="badCSR", title="Basic Constraints extension must be critical.")
-
-            if ext.oid == x509.oid.ExtensionOID.KEY_USAGE:
-                for key, value in vars(ext.value).items():
-                    if not value:
-                        continue
-
-                    key_usage = snake_to_camel(key.lstrip('_'))
-                    if key_usage not in self.allowed_key_usage:
-                        raise ACMEProblemResponse(type="badCSR", title=f"CSR contains forbidden key usage: {key_usage}.")
-
-            if ext.oid == x509.oid.ExtensionOID.EXTENDED_KEY_USAGE:
-                for ext_key_usage in ext.value:
-                    if ext_key_usage.dotted_string not in self.allowed_extended_key_usage_oids:
-                        raise ACMEProblemResponse(type="badCSR", title=f"CSR contains forbidden extended key usage: {ext_key_usage._name}.")
-
-            if ext.oid == x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME:
-                for name in ext.value:
-                    if type(name) not in [x509.DNSName, x509.IPAddress]:
-                        raise ACMEProblemResponse(type="badCSR", title=f"CSR contains forbidden alt name: {name.value}.")
+        self._validate_csr_extensions(csr)
 
         return csr
 
-    async def validate_client(self, client_ip: str, domain: str) -> None:
+    def _validate_csr_extensions(self, csr: CertificateSigningRequest):
+        csr_extensions: list[x509.Extension] = list(iter(csr.extensions))
+        for ext in csr_extensions:
+            if ext.oid.dotted_string not in self.allowed_extension_oids:
+                raise ACMEProblemResponse(
+                    error_type="badCSR",
+                    title=(
+                        f"CSR contains forbidden extension: {ext.oid}."
+                    )
+                )
+
+            if ext.oid == x509.oid.ExtensionOID.BASIC_CONSTRAINTS:
+                self._validate_csr_basic_constraint(ext)
+
+            if ext.oid == x509.oid.ExtensionOID.KEY_USAGE:
+                self._validate_csr_key_usage(ext)
+
+            if ext.oid == x509.oid.ExtensionOID.EXTENDED_KEY_USAGE:
+                self._validate_extended_key_usage(ext)
+
+            if ext.oid == x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME:
+                self._validate_csr_san(ext)
+
+    @staticmethod
+    def _validate_csr_san(ext: Extension):
+        for name in ext.value:
+            if type(name) not in [x509.DNSName, x509.IPAddress]:
+                raise ACMEProblemResponse(
+                    error_type="badCSR",
+                    title=(
+                        f"CSR contains forbidden alt name: "
+                        f"{name.value}."
+                    )
+                )
+
+    def _validate_extended_key_usage(self, ext: Extension):
+        for ext_key_usage in ext.value:
+            if (ext_key_usage.dotted_string not in
+                    self.allowed_extended_key_usage_oids):
+                # pylint: disable=protected-access
+                raise ACMEProblemResponse(
+                    error_type="badCSR",
+                    title=(
+                        f"CSR contains forbidden extended key "
+                        f"usage: {ext_key_usage._name}."
+                    )
+                )
+
+    def _validate_csr_key_usage(self, ext: Extension):
+        for key, value in vars(ext.value).items():
+            if not value:
+                continue
+
+            key_usage = snake_to_camel(key.lstrip('_'))
+            if key_usage not in self.allowed_key_usage:
+                raise ACMEProblemResponse(
+                    error_type="badCSR",
+                    title=(
+                        f"CSR contains forbidden key usage: "
+                        f"{key_usage}."
+                    )
+                )
+
+    def _validate_csr_basic_constraint(self, ext: Extension):
+        if ext.value.ca:
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="CSR must not be for a CA certificate."
+            )
+        if ext.value.path_length and ext.value.path_length != 0:
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="CSR must have a path length of 0."
+            )
+        if not ext.critical:
+            raise ACMEProblemResponse(
+                error_type="badCSR",
+                title="Basic Constraints extension must be critical."
+            )
+
+    async def validate_client(
+            self,
+            client_ip: str,
+            domain: str
+    ) -> None:
+        """Validate that a client has authority over a domain."""
         try:
-            domain_ips = set([x[4][0] for x in socket.getaddrinfo(domain, None)])
-        except socket.gaierror as e:
+            domain_ips = {
+                x[4][0] for x in socket.getaddrinfo(domain, None)
+            }
+        except socket.gaierror as exc:
             raise ACMEProblemResponse(
-                type="dns",
+                error_type="dns",
                 title=f"Domain {domain} does not exist",
-                detail=str(e)
-            )
-        except Exception as e:
+                detail=str(exc)
+            ) from exc
+        except Exception as exc:
             raise ACMEProblemResponse(
-                type="serverInternal",
-                title=f"Unknown error occurred while validating domain",
-                detail=str(e)
-            )
+                error_type="serverInternal",
+                title="Unknown error occurred while validating domain",
+                detail=str(exc)
+            ) from exc
 
         if len(domain_ips) == 0:
             raise ACMEProblemResponse(
-                type="dns",
-                title=f"Domain exists but has no IPs",
+                error_type="dns",
+                title="Domain exists but has no IPs",
             )
 
         pre_validated = self._client_is_valid(client_ip, domain)
         client_allowed = self._client_is_allowed(client_ip, domain)
         client_in_cluster = self._client_in_cluster(client_ip)
 
-        if not pre_validated and not client_allowed and client_ip not in domain_ips and not client_in_cluster:
+        if (not pre_validated and not client_allowed and
+                client_ip not in domain_ips and not client_in_cluster):
             raise ACMEProblemResponse(
-                type="unauthorized",
-                title=f"Client IP '{client_ip}' has not authority over '{domain}'",
-                detail=f"Pre-validated: {pre_validated}, Client Allowed: {client_allowed}",
+                error_type="unauthorized",
+                title=(
+                    f"Client IP '{client_ip}' has not authority over "
+                    f"'{domain}'"
+                ),
+                detail=(
+                    f"Pre-validated: {pre_validated}, "
+                    f"Client Allowed: {client_allowed}"
+                ),
             )
 
     def to_dict(self):
+        """Convert profile to dictionary."""
         return {
             "name": self.name,
             "ca": self.ca,
@@ -148,23 +263,33 @@ class Profile:
             "enabled": self.enabled,
             "default": self.default,
             "supported_challenge_types": self.supported_challenge_types,
-            "pre_validated": [dv.to_dict() for dv in self.pre_validated] if self.pre_validated else None,
-            "acl": [dv.to_dict() for dv in self.acl] if self.acl else None,
+            "pre_validated": (
+                [dv.to_dict() for dv in self.pre_validated]
+                if self.pre_validated else None
+            ),
+            "acl": (
+                [dv.to_dict() for dv in self.acl]
+                if self.acl else None
+            ),
             "cluster": self.cluster,
         }
 
     @field_validator("supported_challenge_types")
     @classmethod
     def challenge_types_must_be_valid(cls, v):
+        """Validate challenge types."""
         if v and not isinstance(v, list):
             raise ValueError("Profile challenge types must be a list.")
 
         if v and "http-01" not in v and "dns-01" not in v:
-            raise ValueError("Profile challenge types must contain 'http-01' or 'dns-01'.")
+            raise ValueError(
+                "Profile challenge types must contain 'http-01' or 'dns-01'."
+            )
 
         return v
 
     def _client_is_valid(self, client_ip: str, domain: str) -> bool:
+        """Check if client is pre-validated for a domain."""
         if not self.pre_validated:
             return False
 
@@ -174,7 +299,11 @@ class Profile:
 
         return False
 
-    def _client_in_cluster(self, client_ip: str) -> bool | ACMEProblemResponse:
+    def _client_in_cluster(
+            self,
+            client_ip: str
+    ) -> bool | ACMEProblemResponse:
+        """Check if client is in the cluster."""
         if not self.cluster:
             return False
 
@@ -183,46 +312,68 @@ class Profile:
             host_by_addr = socket.gethostbyaddr(client_ip)
             client_hostnames.append(host_by_addr[0])
             client_hostnames += host_by_addr[1]
-        except socket.herror as e:
+        except socket.herror:
             pass  # No PTR so we skip
-        except Exception as e:
-            return ACMEProblemResponse(type="serverInternal", title=f"Unknown error occurred while validating domain", detail=str(e))
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            return ACMEProblemResponse(
+                error_type="serverInternal",
+                title="Unknown error occurred while validating domain",
+                detail=str(exc)
+            )
 
-        subnets = [subnet for subnet in self.cluster if is_valid_subnet(subnet)]
+        subnets = [
+            subnet for subnet in self.cluster if is_valid_subnet(subnet)
+        ]
         client_ip_in_subnets = False
         for subnet in subnets:
             if client_ip in subnet:
                 client_ip_in_subnets = True
                 break
 
-        return set(client_hostnames) & set(self.cluster) or \
-            client_ip in self.cluster or \
-            client_ip_in_subnets
+        return (set(client_hostnames) & set(self.cluster) or
+                client_ip in self.cluster or
+                client_ip_in_subnets)
 
-    def _client_in_dv(self, client_ip: str, domain: DomainValidation) -> bool | ACMEProblemResponse:
+    def _client_in_dv(
+            self,
+            client_ip: str,
+            domain: DomainValidation
+    ) -> bool | ACMEProblemResponse:
+        """Check if client is in domain validation list."""
         client_hostnames = []
         try:
             host_by_addr = socket.gethostbyaddr(client_ip)
             client_hostnames.append(host_by_addr[0])
             client_hostnames += host_by_addr[1]
-        except socket.herror as e:
-            pass # No PTR so we skip
-        except Exception as e:
-            return ACMEProblemResponse(type="serverInternal", title=f"Unknown error occurred while validating domain", detail=str(e))
+        except socket.herror:
+            pass  # No PTR so we skip
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            return ACMEProblemResponse(
+                error_type="serverInternal",
+                title="Unknown error occurred while validating domain",
+                detail=str(exc)
+            )
 
-        subnets = [subnet for subnet in domain.clients if is_valid_subnet(subnet)]
+        subnets = [
+            subnet for subnet in domain.clients if is_valid_subnet(subnet)
+        ]
         client_ip_in_subnets = False
         for subnet in subnets:
             if client_ip in subnet:
                 client_ip_in_subnets = True
                 break
 
-        return set(client_hostnames) & set(domain.clients) or \
-            domain.clients == ["*"] or \
-            client_ip in domain.clients or \
-            client_ip_in_subnets
+        return (set(client_hostnames) & set(domain.clients) or
+                domain.clients == ["*"] or
+                client_ip in domain.clients or
+                client_ip_in_subnets)
 
-    def _client_is_allowed(self, client_ip: str, domain: str) -> bool | ACMEProblemResponse:
+    def _client_is_allowed(
+            self,
+            client_ip: str,
+            domain: str
+    ) -> bool | ACMEProblemResponse:
+        """Check if client is allowed for a domain via ACL."""
         if not self.acl:
             return False
 
@@ -251,7 +402,7 @@ class Profile:
             ]
 
         if self.allowed_key_usage is None:
-           self.allowed_key_usage = [
+            self.allowed_key_usage = [
                 "digitalSignature",
                 "keyEncipherment",
                 "keyAgreement",
@@ -263,8 +414,11 @@ class Profile:
                 x509.oid.ExtendedKeyUsageOID.SERVER_AUTH.dotted_string,
             ]
 
+
 @dataclass
 class Http01:
+    """HTTP-01 challenge configuration."""
+
     port: int = 28080
     follow_redirect: bool = True
     timeout_seconds: int = 2
@@ -274,40 +428,51 @@ class Http01:
     @field_validator("port")
     @classmethod
     def port_must_be_valid(cls, v):
+        """Validate port number."""
         if v < 1 or v > 65535:
             raise ValueError("Port must be between 1 and 65535")
         return v
+
 
 @dataclass
 class API:
+    """API server configuration."""
+
     host: str = "0.0.0.0"
     port: int = 8080
-    
+
     @field_validator("port")
     @classmethod
     def port_must_be_valid(cls, v):
+        """Validate port number."""
         if v < 1 or v > 65535:
             raise ValueError("Port must be between 1 and 65535")
         return v
-    
+
     @field_validator("host")
     @classmethod
     def host_must_be_valid(cls, v):
+        """Validate host is a valid IP address."""
         try:
             ipaddress.ip_address(v)
             return v
-        except ValueError:
-            raise ValueError("Host must be a valid IP address")
+        except ValueError as exc:
+            raise ValueError("Host must be a valid IP address") from exc
+
 
 acme_logger = logging.getLogger("vism_acme")
 
+
 class AcmeConfig(Config):
+    """Main configuration class for VISM ACME server."""
+
     log_conf = {
         "log_root": "vism_acme",
         "log_file": "vism_acme.log",
         "error_file": "vism_acme_error.log",
     }
     conf_path = "vism_acme"
+
     def __init__(self, config_file_path: str):
         super().__init__(config_file_path)
 
@@ -315,21 +480,31 @@ class AcmeConfig(Config):
 
         acme_config = self.raw_config_data.get("vism_acme", {})
         self.database = Database(**acme_config.get("database", {}))
-        self.profiles = [Profile(**profile) for profile in acme_config.get("profiles", {})]
+        self.profiles = [
+            Profile(**profile)
+            for profile in acme_config.get("profiles", {})
+        ]
         self.default_profile: Optional[Profile] = None
         self.http01 = Http01(**acme_config.get("http01", {}))
         self.api = API(**acme_config.get("api", {}))
-        self.nonce_ttl_seconds = str(acme_config.get("nonce_ttl_seconds", 300))
-        self.retry_after_seconds = str(acme_config.get("retry_after_seconds", 5))
+        self.nonce_ttl_seconds = str(
+            acme_config.get("nonce_ttl_seconds", 300)
+        )
+        self.retry_after_seconds = str(
+            acme_config.get("retry_after_seconds", 5)
+        )
 
         self.validate_config()
 
     def validate_config(self):
+        """Validate the ACME configuration."""
         acme_logger.info("Validating ACME config")
         if not self.profiles:
             raise ValueError("No profiles found in config.")
 
-        default_profiles = list(filter(lambda profile: profile.default, self.profiles))
+        default_profiles = list(
+            filter(lambda profile: profile.default, self.profiles)
+        )
         if len(default_profiles) > 1:
             raise ValueError("Multiple default profiles found.")
 
@@ -339,20 +514,32 @@ class AcmeConfig(Config):
         self.default_profile = default_profiles[0]
 
     def get_profile_by_name(self, name: str) -> Optional[Profile]:
-        acme_logger.debug(f"Getting profile '{name}'")
+        """Get profile by name, or return default if name is empty."""
+        acme_logger.debug("Getting profile '%s'", name)
         if not name:
             return self.default_profile
 
-        profiles = list(filter(lambda profile: profile.name == name, self.profiles))
+        profiles = list(
+            filter(lambda profile: profile.name == name, self.profiles)
+        )
         if len(profiles) == 0:
-            raise ACMEProblemResponse(type="invalidProfile", title=f"Profile '{name}' not found.")
+            raise ACMEProblemResponse(
+                error_type="invalidProfile",
+                title=f"Profile '{name}' not found."
+            )
         if len(profiles) > 1:
-            raise ACMEProblemResponse(type="invalidProfile", title=f"Multiple profiles found with the name: '{name}'")
+            raise ACMEProblemResponse(
+                error_type="invalidProfile",
+                title=f"Multiple profiles found with the name: '{name}'"
+            )
 
         # juuuuii8u9 | Comment from my cat
 
         profile = profiles[0]
         if not profile.enabled:
-            raise ACMEProblemResponse(type="invalidProfile", title=f"Profile '{name}' is disabled.")
+            raise ACMEProblemResponse(
+                error_type="invalidProfile",
+                title=f"Profile '{name}' is disabled."
+            )
 
         return profile

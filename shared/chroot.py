@@ -1,86 +1,141 @@
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""Chroot utility for isolated filesystem operations."""
+
 import os
 import shutil
 import subprocess
+import uuid
 
 from shared import shared_logger
-from shared.errors import ChrootWriteFileExists, ChrootOpenFileException, ChrootWriteToFileException
+from shared.errors import (
+    ChrootWriteFileExists,
+    ChrootOpenFileException,
+    ChrootWriteToFileException
+)
+
 
 class Chroot:
+    """Chroot environment for isolated file operations."""
+
     def __init__(self, chroot_dir: str):
-        self.unshare_cmd = ['unshare', '-muinpUCT', '-r', 'chroot', chroot_dir]
-        self.chroot_dir = chroot_dir.rstrip("/")
+        self.unshare_cmd = [
+            'unshare', '-muinpUCT', '-r', 'chroot', chroot_dir
+        ]
+        self.chroot_dir = f"{chroot_dir.rstrip(' / ')}/{uuid.uuid4()}"
 
     def read_file_bytes(self, path: str) -> bytes:
-        shared_logger.debug(f"Reading file: {path}")
-        with open(f'{self.chroot_dir}/{path.lstrip("/")}', 'rb') as file:
+        """Read file contents as bytes."""
+        shared_logger.debug("Reading file: %s", path)
+        with open(
+            f'{self.chroot_dir}/{path.lstrip("/")}',
+            'rb',
+            encoding=None
+        ) as file:
             return file.read()
 
     def read_file(self, path: str) -> str:
-        shared_logger.debug(f"Reading file: {path}")
-        with open(f'{self.chroot_dir}/{path.lstrip("/")}', 'r') as file:
+        """Read file contents as string."""
+        shared_logger.debug("Reading file: %s", path)
+        with open(
+            f'{self.chroot_dir}/{path.lstrip("/")}',
+            'r',
+            encoding='utf-8'
+        ) as file:
             return file.read()
 
     def delete_folder_contents(self, folder: str):
-        shared_logger.debug(f"Deleting folder contents: {folder}")
-        shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}', ignore_errors=True)
+        """Delete all contents of a folder."""
+        shared_logger.debug("Deleting folder contents: %s", folder)
+        shutil.rmtree(
+            f'{self.chroot_dir}/{folder.lstrip("/")}',
+            ignore_errors=True
+        )
         self.create_folder(folder)
 
     def delete_folder(self, folder: str):
-        shared_logger.debug(f"Deleting folder: {folder}")
+        """Delete a folder."""
+        shared_logger.debug("Deleting folder: %s", folder)
         try:
             shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}')
         except FileNotFoundError:
             pass
 
     def create_folder(self, folder: str):
-        shared_logger.debug(f"Creating folder: {folder}")
-        os.makedirs(f'{self.chroot_dir}/{folder.lstrip("/")}', exist_ok=True)
+        """Create a folder."""
+        shared_logger.debug("Creating folder: %s", folder)
+        os.makedirs(
+            f'{self.chroot_dir}/{folder.lstrip("/")}',
+            exist_ok=True
+        )
 
     def copy_folder(self, src: str):
-        shared_logger.debug(f"Copying folder: {src}")
-        shutil.copytree(src, f'{self.chroot_dir}/{src.lstrip("/")}', dirs_exist_ok=True)
+        """Copy a folder into chroot."""
+        shared_logger.debug("Copying folder: %s", src)
+        shutil.copytree(
+            src,
+            f'{self.chroot_dir}/{src.lstrip("/")}',
+            dirs_exist_ok=True
+        )
 
     def copy_file(self, src: str):
-        shared_logger.debug(f"Copying file: {src}")
+        """Copy a file into chroot."""
+        shared_logger.debug("Copying file: %s", src)
         self.create_folder(os.path.dirname(src))
         dest = f'{self.chroot_dir}/{src.lstrip("/")}'
         shutil.copy(src, dest, follow_symlinks=True)
 
     def write_file(self, path: str, contents: bytes):
-        shared_logger.debug(f"Writing file: {path} | {contents}")
-        directory = os.path.dirname(f'{self.chroot_dir}/{path.lstrip('/')}')
+        """Write contents to a file in chroot."""
+        shared_logger.debug("Writing file: %s | %s", path, contents)
+        directory = os.path.dirname(
+            f'{self.chroot_dir}/{path.lstrip("/")}'
+        )
         os.makedirs(directory, exist_ok=True)
 
         real_path = f"{self.chroot_dir}/{path.lstrip('/')}"
         if os.path.exists(real_path):
-            raise ChrootWriteFileExists(f"Can not write to {real_path}, file already exists")
+            raise ChrootWriteFileExists(
+                f"Can not write to {real_path}, file already exists"
+            )
 
         try:
             fd = os.open(real_path, os.O_CREAT | os.O_WRONLY, mode=0o600)
-        except Exception as e:
-            raise ChrootOpenFileException(f"Failed to create or open file {real_path}: {e}")
+        except Exception as exc:
+            raise ChrootOpenFileException(
+                f"Failed to create or open file {real_path}: {exc}"
+            ) from exc
 
         try:
             os.write(fd, contents)
             os.close(fd)
-        except Exception as e:
+        except Exception as exc:
             os.close(fd)
-            raise ChrootWriteToFileException(f"Failed to write to file {real_path}: {e}")
+            raise ChrootWriteToFileException(
+                f"Failed to write to file {real_path}: {exc}"
+            ) from exc
 
     def delete_file(self, path):
-        shared_logger.debug(f"Deleting file: {path}")
+        """Delete a file from chroot."""
+        shared_logger.debug("Deleting file: %s", path)
         real_path = f"{self.chroot_dir}/{path.lstrip('/')}"
         if os.path.exists(real_path):
             os.remove(real_path)
 
-    def run_command(self, command: str, stdin: str = None, environment: dict = None) -> subprocess.CompletedProcess:
-        shared_logger.debug(f"Running command: {command}")
+    def run_command(
+            self,
+            command: str,
+            stdin: str = None,
+            environment: dict = None
+    ) -> subprocess.CompletedProcess:
+        """Run a command in the chroot environment."""
+        shared_logger.debug("Running command: %s", command)
         result = subprocess.run(
             self.unshare_cmd + command.split(" "),
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             input=stdin,
             text=True,
-            env=environment
+            env=environment,
+            check=False
         )
         return result

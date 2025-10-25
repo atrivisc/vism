@@ -1,5 +1,8 @@
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""Rabbitmq module exception classes."""
+
 from shared.errors import VismException
 
 
 class RabbitMQError(VismException):
-    pass
+    """Raised when a RabbitMQ error occurs."""

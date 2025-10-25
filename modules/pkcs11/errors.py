@@ -1,22 +1,32 @@
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""PKCS#11 module exception classes."""
+
 from shared.errors import VismException
 
+
 class PKCS11Error(VismException):
-    pass
+    """Base exception class for PKCS#11 errors."""
+
 
 class PKCS11KeyNotFound(VismException):
-    pass
+    """Exception raised when a PKCS#11 key is not found."""
+
 
 class PKCS11FailedToSignData(VismException):
-    pass
+    """Exception raised when signing data fails."""
+
 
 class PKCS11FailedToVerifySignature(VismException):
-    pass
+    """Exception raised when signature verification fails."""
+
 
 class PKCS11FailedToGetPublicKey(VismException):
-    pass
+    """Exception raised when retrieving public key fails."""
+
 
 class PKCS11FailedToEncryptData(VismException):
-    pass
+    """Exception raised when data encryption fails."""
+
 
 class PKCS11FailedToDecryptData(VismException):
-    pass
+    """Exception raised when data decryption fails."""

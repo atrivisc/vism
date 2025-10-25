@@ -1,20 +1,22 @@
-from datetime import datetime
-from sqlalchemy import String, Text, DateTime, func
+# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+"""Database models for ACME error entities."""
+
+from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 from shared.db import Base
 
 
 class ErrorEntity(Base):
+    """Database entity representing an ACME error."""
+
     __tablename__ = 'error'
 
     type: Mapped[str] = mapped_column(String, nullable=True, default=None)
     title: Mapped[str] = mapped_column(String, nullable=True, default=None)
     detail: Mapped[str] = mapped_column(Text, nullable=True, default=None)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), init=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now(), init=False)
-
     def to_dict(self):
+        """Convert error entity to dictionary representation."""
         return {
             "type": self.type,
             "title": self.title,
