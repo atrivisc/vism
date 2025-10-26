@@ -1,10 +1,9 @@
 """OpenSSL cryptographic module implementation."""
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import shutil
 import textwrap
 from dataclasses import dataclass
-from typing import Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
@@ -15,6 +14,7 @@ from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs
 from modules.openssl.db import OpenSSLData
 from shared.util import get_needed_libraries
 from vism_ca import VismCADatabase, CertificateConfig, CryptoModule
+from vism_ca.crypto import CryptoCert
 from vism_ca.errors import (
     GenCertException,
     GenCSRException,
@@ -30,16 +30,59 @@ class OpenSSLCertConfig(CertificateConfig):
     module_args: OpenSSLModuleArgs
 
 
+@dataclass
+class OpenSSLCryptoCert(CryptoCert):
+    """Certificate for OpenSSL module."""
+    config: OpenSSLCertConfig
+
+    @property
+    def config_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.conf"
+
+    @property
+    def key_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.key"
+
+    @property
+    def csr_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.csr"
+
+    @property
+    def cert_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.crt"
+
+    @property
+    def crl_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.crl"
+
+    @property
+    def database_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}.db"
+
+    @property
+    def serial_path(self):
+        return f"/tmp/{self.config.name}/serial"
+
+    @property
+    def crlnumber_path(self):
+        return f"/tmp/{self.config.name}/crlnumber"
+
+    @property
+    def certs_path(self):
+        return f"/tmp/{self.config.name}/certs"
+    
+
 class OpenSSL(CryptoModule):
     """OpenSSL implementation of cryptographic module."""
 
     config_path: str = "openssl"
     configClass: OpenSSLConfig = OpenSSLConfig
-    moduleArgsClass: OpenSSLModuleArgs = OpenSSLModuleArgs
+    moduleArgsClass = OpenSSLModuleArgs
+    cryptoCertClass = OpenSSLCryptoCert
+    config: OpenSSLConfig
 
     def __init__(self, chroot_dir: str, database: VismCADatabase):
         module_logger.debug("Initializing OpenSSL module")
-        self.config: Optional[OpenSSLConfig] = None
         self.database = database
         super().__init__(chroot_dir)
 
@@ -48,10 +91,10 @@ class OpenSSL(CryptoModule):
         """Get path to openssl binary."""
         return self.config.bin or shutil.which("openssl")
 
-    def _write_openssl_config(self, cert_config: OpenSSLCertConfig):
+    def _write_openssl_config(self, cert: OpenSSLCryptoCert):
         """Write OpenSSL configuration file to chroot."""
         openssl_config_template_path = (
-            cert_config.module_args.config_template or
+            cert.config.module_args.config_template or
             self.config.default_config_template
         )
 
@@ -63,7 +106,7 @@ class OpenSSL(CryptoModule):
             config_template = f.read()
 
         profile = self.config.get_profile_by_name(
-            cert_config.module_args.profile
+            cert.config.module_args.profile
         )
 
         template = Template(
@@ -71,66 +114,40 @@ class OpenSSL(CryptoModule):
             trim_blocks=True,
             lstrip_blocks=True,
             undefined=StrictUndefined
-        ).render({'certificate': cert_config, 'ca_profile': profile})
+        ).render({'certificate': cert.config, 'ca_profile': profile})
 
-        config_path = (
-            f"/tmp/{cert_config.name}/{cert_config.name}.conf"
-        )
-        self.chroot.write_file(config_path, template.encode("utf-8"))
+        self.chroot.write_file(cert.config_path, template.encode("utf-8"))
 
-    def _create_crt_environment(
-            self,
-            cert_config: OpenSSLCertConfig,
-            key_pem: str = None,
-            csr_pem: str = None,
-            crt_pem: str = None
-    ) -> None:
+    def _create_crt_environment(self, cert: OpenSSLCryptoCert) -> None:
         """Create certificate environment in chroot."""
         module_logger.debug(
             "Creating crt environment for '%s'",
-            cert_config.name
+            cert.config.name
         )
-        self._write_openssl_config(cert_config)
+        self._write_openssl_config(cert)
 
-        if key_pem:
-            key_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.key"
-            )
-            self.chroot.write_file(key_path, key_pem.encode("utf-8"))
-        if csr_pem:
-            csr_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.csr"
-            )
-            self.chroot.write_file(csr_path, csr_pem.encode("utf-8"))
-        if crt_pem:
-            crt_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.crt"
-            )
-            self.chroot.write_file(crt_path, crt_pem.encode("utf-8"))
+        if cert.key_pem:
+            self.chroot.write_file(cert.key_path, cert.key_pem.encode("utf-8"))
+        if cert.csr_pem:
+            self.chroot.write_file(cert.csr_path, cert.csr_pem.encode("utf-8"))
+        if cert.crt_pem:
+            self.chroot.write_file(cert.cert_path, cert.crt_pem.encode("utf-8"))
 
-    def _create_ca_environment(
-            self,
-            cert_config: OpenSSLCertConfig,
-            key_pem: str = None,
-            csr_pem: str = None,
-            crt_pem: str = None
-    ):
+    def _create_ca_environment(self, cert: OpenSSLCryptoCert):
         """Create CA environment in chroot."""
         module_logger.debug(
             "Creating ca environment for '%s'",
-            cert_config.name
+            cert.config.name
         )
 
-        self._create_crt_environment(
-            cert_config, key_pem, csr_pem, crt_pem
-        )
+        self._create_crt_environment(cert)
         openssl_data = self.database.get(
             OpenSSLData,
-            OpenSSLData.cert_name == cert_config.name
+            OpenSSLData.cert_name == cert.config.name
         )
 
         if not openssl_data:
-            openssl_data = OpenSSLData(cert_name=cert_config.name)
+            openssl_data = OpenSSLData(cert_name=cert.config.name)
 
         if openssl_data:
             if not openssl_data.database:
@@ -140,26 +157,20 @@ class OpenSSL(CryptoModule):
             if not openssl_data.crlnumber:
                 openssl_data.crlnumber = "01"
 
-            database_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.db"
-            )
-            serial_path = f"/tmp/{cert_config.name}/serial"
-            crl_number_path = f"/tmp/{cert_config.name}/crlnumber"
-
             self.chroot.write_file(
-                database_path,
+                cert.database_path,
                 openssl_data.database.encode("utf-8")
             )
             self.chroot.write_file(
-                serial_path,
+                cert.serial_path,
                 openssl_data.serial.encode("utf-8")
             )
             self.chroot.write_file(
-                crl_number_path,
+                cert.crlnumber_path,
                 openssl_data.crlnumber.encode("utf-8")
             )
 
-        self.chroot.create_folder(f"/tmp/{cert_config.name}/certs")
+        self.chroot.create_folder(f"/tmp/{cert.config.name}/certs")
 
         return openssl_data
 
@@ -176,121 +187,182 @@ class OpenSSL(CryptoModule):
 
         self.chroot.copy_file(self.openssl_path)
 
-    def generate_crl(
+    def _build_csr_sign_command(
             self,
-            cert_config: OpenSSLCertConfig,
-            key_pem: str,
-            crt_pem: str
-    ):
-        """Generate Certificate Revocation List."""
-        module_logger.info(
-            "Generating crl for '%s'",
-            cert_config.name
-        )
-        openssl_data = self._create_ca_environment(
-            cert_config, key_pem, crt_pem=crt_pem
-        )
-
-        if not openssl_data:
-            self.cleanup()
-            raise GenCRLException(
-                "Cannot generate CRL before certificate."
-            )
+            signing_cert: OpenSSLCryptoCert,
+            module_args: OpenSSLModuleArgs
+    ) -> str:
+        """Build command for signing a CSR."""
+        csr_path = "/tmp/to_sign.csr"
 
         command = (
             f"{self.openssl_path} ca -batch "
-            f"-keyfile /tmp/{cert_config.name}/{cert_config.name}.key "
-            f"-config /tmp/{cert_config.name}/{cert_config.name}.conf "
+            f"-keyfile {signing_cert.key_path} "
+            f"-config {signing_cert.config_path} "
+            f"-in {csr_path} "
+            f"-out -"
+        )
+
+        if module_args.days:
+            command += f" -days {module_args.days}"
+
+        if module_args.extension:
+            command += f' -extensions {module_args.extension}'
+
+        key_config = signing_cert.config.module_args.key
+        if key_config.password:
+            command += f" -passin pass:{key_config.password}"
+
+        return command
+
+    def _build_ca_sign_command(
+            self,
+            cert: OpenSSLCryptoCert,
+            signing_cert: OpenSSLCryptoCert = None
+    ) -> str:
+        """Build command for signing a CA certificate."""
+        if signing_cert is None:
+            signing_key_path = cert.key_path
+            config_path = cert.config_path
+        else:
+            signing_key_path = signing_cert.key_path
+            config_path = signing_cert.config_path
+
+        command = (
+            f"{self.openssl_path} ca -batch "
+            f"-keyfile {signing_key_path} "
+            f"-config {config_path} "
+            f"-in {cert.csr_path} "
+            f"-out -"
+        )
+
+        if cert.config.module_args.days:
+            command += f" -days {cert.config.module_args.days}"
+
+        if cert.config.module_args.extension:
+            command += f' -extensions {cert.config.module_args.extension}'
+
+        if signing_cert is None and cert.config.signed_by is None:
+            command += " -selfsign"
+
+        key_config = (
+            cert.config.module_args.key if signing_cert is None
+            else signing_cert.config.module_args.key
+        )
+        if key_config.password:
+            command += f" -passin pass:{key_config.password}"
+
+        return command
+
+    def _execute_ca_sign(
+            self,
+            command: str,
+            openssl_data: OpenSSLData = None,
+            signing_cert: OpenSSLCryptoCert = None
+    ) -> str:
+        """Execute CA signing command."""
+        output = self.chroot.run_command(command)
+
+        if output.returncode != 0:
+            self.cleanup()
+            raise GenCertException(
+                f"Failed to generate certificate: {output.stderr}"
+            )
+
+        if openssl_data and signing_cert.config:
+            openssl_data.crlnumber = self.chroot.read_file(signing_cert.crlnumber_path)
+            openssl_data.serial = self.chroot.read_file(signing_cert.serial_path)
+            openssl_data.database = self.chroot.read_file(signing_cert.database_path)
+            self.database.save_to_db(openssl_data)
+
+        return output.stdout
+
+    def generate_crl(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
+        """Generate Certificate Revocation List."""
+        module_logger.info(
+            "Generating crl for '%s'",
+            cert.config.name
+        )
+        openssl_data = self._create_ca_environment(cert)
+
+        if not openssl_data:
+            self.cleanup()
+            raise GenCRLException("Cannot generate CRL before certificate.")
+
+        command = (
+            f"{self.openssl_path} ca -batch "
+            f"-keyfile {cert.key_path} "
+            f"-config {cert.config_path} "
             f"-gencrl "
             f"-out -"
         )
 
-        if cert_config.module_args.key.password:
-            password = cert_config.module_args.key.password
+        password = cert.config.module_args.key.password
+        if password:
             command += f" -passin pass:{password}"
 
         output = self.chroot.run_command(command)
         if output.returncode != 0:
             self.cleanup()
-            raise GenCRLException(
-                f"Failed to generate crl: {output.stderr}"
-            )
+            raise GenCRLException(f"Failed to generate crl: {output.stderr}")
 
-        crlnumber_path = f"/tmp/{cert_config.name}/crlnumber"
-        openssl_data.crlnumber = self.chroot.read_file(crlnumber_path)
-        serial_path = f"/tmp/{cert_config.name}/serial"
-        openssl_data.serial = self.chroot.read_file(serial_path)
-        db_path = f"/tmp/{cert_config.name}/{cert_config.name}.db"
-        openssl_data.database = self.chroot.read_file(db_path)
+        openssl_data.crlnumber = self.chroot.read_file(cert.crlnumber_path)
+        openssl_data.serial = self.chroot.read_file(cert.serial_path)
+        openssl_data.database = self.chroot.read_file(cert.database_path)
 
         self.database.save_to_db(openssl_data)
         self.cleanup()
 
-        return output.stdout
+        cert.crl_pem = output.stdout
 
-    def generate_csr(
-            self,
-            cert_config: OpenSSLCertConfig,
-            key_pem: str
-    ) -> str:
+        return cert
+
+    def generate_csr(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate Certificate Signing Request."""
         module_logger.info(
             "Generating csr for '%s'",
-            cert_config.name
+            cert.config.name
         )
 
-        self._create_crt_environment(cert_config, key_pem)
+        self._create_crt_environment(cert)
 
-        key_path = f"/tmp/{cert_config.name}/{cert_config.name}.key"
-        config_path = (
-            f"/tmp/{cert_config.name}/{cert_config.name}.conf"
-        )
         command = (
             f"{self.openssl_path} req -batch -new "
-            f"-config {config_path} -key {key_path}"
+            f"-config {cert.config_path} -key {cert.key_path}"
         )
-        if cert_config.module_args.key.password:
-            password = cert_config.module_args.key.password
+        password = cert.config.module_args.key.password
+        if password:
             command += f" -passin pass:{password}"
 
         output = self.chroot.run_command(command)
         if output.returncode != 0:
             self.cleanup()
-            raise GenCSRException(
-                f"Failed to generate csr: {output.stderr}"
-            )
+            raise GenCSRException(f"Failed to generate csr: {output.stderr}")
 
         self.cleanup()
+        cert.csr_pem = output.stdout
+        return cert
 
-        return output.stdout
-
-    def generate_private_key(
-            self,
-            cert_config: OpenSSLCertConfig
-    ) -> tuple[str, str]:
+    def generate_private_key(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate private key and return private and public key PEMs."""
         module_logger.info(
             "Generating private key for '%s'.",
-            cert_config.name
+            cert.config.name
         )
-        self._create_crt_environment(cert_config)
+        self._create_crt_environment(cert)
 
-        key_config = cert_config.module_args.key
-
-        config_path = (
-            f"/tmp/{cert_config.name}/{cert_config.name}.conf"
-        )
+        key_config = cert.config.module_args.key
         command = (
-            f"{self.openssl_path} genpkey -config {config_path} "
+            f"{self.openssl_path} genpkey -config {cert.config_path} "
             f"-algorithm {key_config.algorithm}"
         )
+
         if key_config.algorithm == "RSA" and key_config.bits:
             command += f" -pkeyopt rsa_keygen_bits:{key_config.bits}"
         if key_config.password:
             command += f" -aes-256-cbc -pass pass:{key_config.password}"
 
         output = self.chroot.run_command(command)
-
         if output.returncode != 0:
             self.cleanup()
             raise GenPKEYException(
@@ -321,7 +393,11 @@ class OpenSSL(CryptoModule):
             ) from exc
 
         self.cleanup()
-        return private_key_pem, public_key_pem
+
+        cert.key_pem = private_key_pem
+        cert.public_key_pem = public_key_pem
+
+        return cert
 
     def cleanup(self, full: bool = False):
         """Clean up temporary files in chroot."""
@@ -333,223 +409,63 @@ class OpenSSL(CryptoModule):
         if full:
             self.chroot.delete_folder("/")
 
-    def generate_ca_certificate(
-            self,
-            cert_config: OpenSSLCertConfig,
-            key_pem: str,
-            csr_pem: str
-    ) -> str:
+    def generate_ca_certificate(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate CA certificate."""
         module_logger.info(
             "Generating ca certificate for '%s'",
-            cert_config.name
+            cert.config.name
         )
 
-        openssl_data = self._create_ca_environment(
-            cert_config, key_pem, csr_pem
-        )
-        command = self._build_ca_sign_command(cert_config)
-        cert_pem = self._execute_ca_sign(
-            command, openssl_data, cert_config
-        )
+        openssl_data = self._create_ca_environment(cert)
+        command = self._build_ca_sign_command(cert)
+        cert_pem = self._execute_ca_sign(command, openssl_data, cert)
 
         self.cleanup()
-        return cert_pem
+        cert.crt_pem = cert_pem
+        return cert
 
-    def sign_csr(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-            self,
-            signing_cert_config: OpenSSLCertConfig,
-            signing_crt_pem: str,
-            signing_key_pem: str,
-            csr_pem: str,
-            module_args: OpenSSLModuleArgs
-    ) -> str:
+    def sign_csr(
+        self,
+        cert: OpenSSLCryptoCert,
+        signing_cert: OpenSSLCryptoCert,
+        module_args: OpenSSLModuleArgs
+    ) -> OpenSSLCryptoCert:
         """Sign a Certificate Signing Request."""
-        module_logger.info(
-            "Signing csr with '%s'",
-            signing_cert_config.name
-        )
-        signing_openssl_data = self._create_ca_environment(
-            signing_cert_config,
-            crt_pem=signing_crt_pem,
-            key_pem=signing_key_pem
-        )
+        module_logger.info("Signing csr with '%s'", signing_cert.config.name)
+        signing_openssl_data = self._create_ca_environment(signing_cert)
 
-        self.chroot.write_file(
-            "/tmp/to_sign.csr",
-            csr_pem.encode("utf-8")
-        )
-        command = self._build_csr_sign_command(
-            signing_cert_config, module_args
-        )
+        self.chroot.write_file("/tmp/to_sign.csr", cert.csr_pem.encode("utf-8"))
+        command = self._build_csr_sign_command(signing_cert, module_args)
 
-        cert_pem = self._execute_ca_sign(
-            command, signing_openssl_data, signing_cert_config
-        )
+        cert_pem = self._execute_ca_sign(command, signing_openssl_data, signing_cert)
         self.cleanup()
 
-        return cert_pem
+        cert.crt_pem = cert_pem
+        return cert
 
-    def sign_ca_certificate(  # pylint: disable=too-many-arguments,too-many-positional-arguments
-            self,
-            cert_config: OpenSSLCertConfig,
-            signing_cert_config: OpenSSLCertConfig,
-            signing_crt_pem: str,
-            signing_key_pem: str,
-            csr_pem: str
-    ) -> str:
+    def sign_ca_certificate(
+        self,
+        cert: OpenSSLCryptoCert,
+        signing_cert: OpenSSLCryptoCert,
+    ) -> OpenSSLCryptoCert:
         """Sign a CA certificate with another CA certificate."""
         module_logger.info(
             "Signing ca certificate for '%s' with '%s'",
-            cert_config.name,
-            signing_cert_config.name
+            cert.config.name,
+            signing_cert.config.name
         )
 
-        signing_openssl_data = self._create_ca_environment(
-            signing_cert_config,
-            crt_pem=signing_crt_pem,
-            key_pem=signing_key_pem
-        )
-        openssl_data = self._create_ca_environment(
-            cert_config, csr_pem=csr_pem
-        )
-        command = self._build_ca_sign_command(
-            cert_config, signing_cert_config
-        )
+        signing_openssl_data = self._create_ca_environment(signing_cert)
+        openssl_data = self._create_ca_environment(cert)
+        command = self._build_ca_sign_command(cert, signing_cert)
+        cert_pem = self._execute_ca_sign(command, signing_openssl_data, signing_cert)
 
-        cert_pem = self._execute_ca_sign(
-            command, signing_openssl_data, signing_cert_config
-        )
-
-        crlnumber_path = f"/tmp/{cert_config.name}/crlnumber"
-        openssl_data.crlnumber = self.chroot.read_file(crlnumber_path)
-        serial_path = f"/tmp/{cert_config.name}/serial"
-        openssl_data.serial = self.chroot.read_file(serial_path)
-        db_path = f"/tmp/{cert_config.name}/{cert_config.name}.db"
-        openssl_data.database = self.chroot.read_file(db_path)
+        openssl_data.crlnumber = self.chroot.read_file(cert.crlnumber_path)
+        openssl_data.serial = self.chroot.read_file(cert.serial_path)
+        openssl_data.database = self.chroot.read_file(cert.database_path)
 
         self.database.save_to_db(openssl_data)
         self.cleanup()
 
-        return cert_pem
-
-    def _build_csr_sign_command(
-            self,
-            signing_cert_config: OpenSSLCertConfig,
-            module_args: OpenSSLModuleArgs
-    ) -> str:
-        """Build command for signing a CSR."""
-        signing_key_path = (
-            f"/tmp/{signing_cert_config.name}/"
-            f"{signing_cert_config.name}.key"
-        )
-        config_path = (
-            f"/tmp/{signing_cert_config.name}/"
-            f"{signing_cert_config.name}.conf"
-        )
-        csr_path = "/tmp/to_sign.csr"
-
-        command = (
-            f"{self.openssl_path} ca -batch "
-            f"-keyfile {signing_key_path} "
-            f"-config {config_path} "
-            f"-in {csr_path} "
-            f"-out -"
-        )
-
-        if module_args.days:
-            command += f" -days {module_args.days}"
-
-        if module_args.extension:
-            command += f' -extensions {module_args.extension}'
-
-        key_config = signing_cert_config.module_args.key
-        if key_config.password:
-            command += f" -passin pass:{key_config.password}"
-
-        return command
-
-    def _build_ca_sign_command(
-            self,
-            cert_config: OpenSSLCertConfig,
-            parent_cert_config: OpenSSLCertConfig = None
-    ) -> str:
-        """Build command for signing a CA certificate."""
-        if parent_cert_config is None:
-            signing_key_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.key"
-            )
-            config_path = (
-                f"/tmp/{cert_config.name}/{cert_config.name}.conf"
-            )
-        else:
-            signing_key_path = (
-                f"/tmp/{parent_cert_config.name}/"
-                f"{parent_cert_config.name}.key"
-            )
-            config_path = (
-                f"/tmp/{parent_cert_config.name}/"
-                f"{parent_cert_config.name}.conf"
-            )
-
-        csr_path = f"/tmp/{cert_config.name}/{cert_config.name}.csr"
-
-        command = (
-            f"{self.openssl_path} ca -batch "
-            f"-keyfile {signing_key_path} "
-            f"-config {config_path} "
-            f"-in {csr_path} "
-            f"-out -"
-        )
-
-        if cert_config.module_args.days:
-            command += f" -days {cert_config.module_args.days}"
-
-        if cert_config.module_args.extension:
-            command += f' -extensions {cert_config.module_args.extension}'
-
-        if (parent_cert_config is None and
-                cert_config.signed_by is None):
-            command += " -selfsign"
-
-        key_config = (
-            cert_config.module_args.key if parent_cert_config is None
-            else parent_cert_config.module_args.key
-        )
-        if key_config.password:
-            command += f" -passin pass:{key_config.password}"
-
-        return command
-
-    def _execute_ca_sign(
-            self,
-            command: str,
-            openssl_data: OpenSSLData = None,
-            signing_cert_config: OpenSSLCertConfig = None
-    ) -> str:
-        """Execute CA signing command."""
-        output = self.chroot.run_command(command)
-
-        if output.returncode != 0:
-            self.cleanup()
-            raise GenCertException(
-                f"Failed to generate certificate: {output.stderr}"
-            )
-
-        if openssl_data and signing_cert_config:
-            crlnumber_path = (
-                f"/tmp/{signing_cert_config.name}/crlnumber"
-            )
-            openssl_data.crlnumber = self.chroot.read_file(
-                crlnumber_path
-            )
-            serial_path = f"/tmp/{signing_cert_config.name}/serial"
-            openssl_data.serial = self.chroot.read_file(serial_path)
-            db_path = (
-                f"/tmp/{signing_cert_config.name}/"
-                f"{signing_cert_config.name}.db"
-            )
-            openssl_data.database = self.chroot.read_file(db_path)
-            self.database.save_to_db(openssl_data)
-
-        return output.stdout
+        cert.crt_pem = cert_pem
+        return cert

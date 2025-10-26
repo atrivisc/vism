@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Database interface for VISM ACME operations."""
 
 from typing import Optional

@@ -1,36 +1,55 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Base controller class for VISM components."""
 
 import asyncio
-from shared.config import Config
+from shared.config import Config, shared_logger
 from shared.data.exchange import DataExchange
 from shared.data.validation import Data
+from shared.db import VismDatabase
+from shared.logs import setup_logger, SensitiveDataFilter
 
 
 class Controller:
     """Base controller class for managing modules and configuration."""
 
-    config_file_path: str = ""
     configClass = Config
+    databaseClass = VismDatabase
 
     def __init__(self):
-        self.config = self.configClass(self.config_file_path)
+        self.config = self.configClass.load()
+        self.setup_logging()
         self.data_exchange_module = self.setup_data_exchange_module()
         self.encryption_module = self.setup_encryption_module()
         self.validation_module = self.setup_validation_module()
+        self.database = self.databaseClass(self.config.database, self.validation_module)
 
         self._shutdown_event = asyncio.Event()
+
+    def __post_init__(self):
+        self.setup_logging()
+
+    def setup_logging(self):
+        """Set up logging configuration."""
+        shared_logger.info("Setting up logging")
+        setup_logger(self.config.logging)
+
+    def shutdown(self):
+        """Initiates shutdown of the CA."""
+        shared_logger.info("Received shutdown signal, shutting down")
+        self._shutdown_event.set()
 
     def setup_data_exchange_module(self) -> DataExchange:
         """Set up the data exchange module from configuration."""
         data_exchange_module_imports = __import__(
-            f'modules.{self.config.data_exchange.module}',
+            f'modules.{self.config.security.data_exchange.module}',
             fromlist=['Module', 'ModuleConfig']
         )
-        data_exchange_module = data_exchange_module_imports.Module(self)
 
-        data_exchange_module.load_config(self.config.raw_config_data)
-        return data_exchange_module
+        SensitiveDataFilter.SENSITIVE_PATTERNS.update(
+            data_exchange_module_imports.LOGGING_SENSITIVE_PATTERNS
+        )
+
+        return data_exchange_module_imports.Module(self)
 
     def setup_encryption_module(self) -> Data:
         """Set up the encryption module from configuration."""
@@ -38,22 +57,26 @@ class Controller:
             f'modules.{self.config.security.data_encryption.module}',
             fromlist=['Module', 'ModuleConfig']
         )
-        encryption_module = encryption_module_imports.Module(
-            encryption_key=self.config.security.data_encryption.encryption_key,
+
+        SensitiveDataFilter.SENSITIVE_PATTERNS.update(
+            encryption_module_imports.LOGGING_SENSITIVE_PATTERNS
         )
 
-        encryption_module.load_config(self.config.raw_config_data)
-        return encryption_module
+        return encryption_module_imports.Module(
+            encryption_key=self.config.security.data_encryption.encryption_key,
+        )
 
     def setup_validation_module(self) -> Data:
         """Set up the validation module from configuration."""
         validation_module_imports = __import__(
             f'modules.{self.config.security.data_validation.module}',
-            fromlist=['Module', 'ModuleConfig']
-        )
-        validation_module = validation_module_imports.Module(
-            validation_key=self.config.security.data_validation.validation_key
+            fromlist=['Module', 'ModuleConfig', 'LOGGING_SENSITIVE_PATTERNS']
         )
 
-        validation_module.load_config(self.config.raw_config_data)
-        return validation_module
+        SensitiveDataFilter.SENSITIVE_PATTERNS.update(
+            validation_module_imports.LOGGING_SENSITIVE_PATTERNS
+        )
+
+        return validation_module_imports.Module(
+            validation_key=self.config.security.data_validation.validation_key
+        )

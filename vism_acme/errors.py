@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 """VISM ACME error and exception classes."""
 
@@ -25,7 +25,7 @@ class ACMEProblemResponse(Exception):
     status_code: int = 400
     error_json: dict[str, Any] = None
 
-    def post_init(self):
+    def __post_init__(self):
         """Compile error JSON and init exception."""
         self.error_json: dict[str, Any] = {
             "type": f"urn:ietf:params:acme:error:{self.error_type}",

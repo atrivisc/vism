@@ -1,9 +1,9 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL module configuration classes."""
-
+import os
 import re
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Optional, ClassVar
 
 from modules.openssl.errors import ProfileNotFound, MultipleProfilesFound
 from vism_ca import ModuleArgsConfig
@@ -15,7 +15,7 @@ class CAProfileAuthorityInfoAccess:
     """Authority Information Access extension configuration."""
 
     name: str = None
-    ca_issuers_uris: list[str] = None
+    caIssuersURIs: list[str] = None
 
 
 @dataclass
@@ -23,7 +23,7 @@ class CAProfileCRLDistributionPoints:
     """CRL Distribution Points extension configuration."""
 
     name: str = None
-    uris: list[str] = None
+    URIs: list[str] = None
 
 
 @dataclass
@@ -31,13 +31,13 @@ class CAProfileCertExtension:  # pylint: disable=too-many-instance-attributes
     """Certificate extension configuration."""
 
     name: str = None
-    basic_constraints: str = None
-    key_usage: str = None
-    extended_key_usage: str = None
-    subject_key_identifier: str = None
-    authority_key_identifier: str = None
-    authority_info_access: str = None
-    crl_distribution_points: str = None
+    basicConstraints: str = None
+    keyUsage: str = None
+    extendedKeyUsage: str = None
+    subjectKeyIdentifier: str = None
+    authorityKeyIdentifier: str = None
+    authorityInfoAccess: str = None
+    crlDistributionPoints: str = None
 
 
 @dataclass
@@ -45,12 +45,12 @@ class CAProfileMatchPolicy:
     """Match policy configuration for certificate validation."""
 
     name: str = None
-    country_name: str = "optional"
-    state_or_province_name: str = "optional"
-    locality_name: str = "optional"
-    organization_name: str = "optional"
-    organizational_unit_name: str = "optional"
-    common_name: str = "optional"
+    countryName: str = "optional"
+    stateOrProvinceName: str = "optional"
+    localityName: str = "optional"
+    organizationName: str = "optional"
+    organizationalUnitName: str = "optional"
+    commonName: str = "optional"
 
 
 @dataclass
@@ -58,8 +58,8 @@ class CAProfileCRLExtension:
     """CRL extension configuration."""
 
     name: str = None
-    authority_key_identifier: str = None
-    authority_info_access: str = None
+    authorityKeyIdentifier: str = None
+    authorityInfoAccess: str = None
 
 
 @dataclass
@@ -93,12 +93,12 @@ class CAProfileDistinguishedNameExtension:
     """Distinguished Name extension configuration."""
 
     name: str = None
-    country_name: str = None
-    state_or_province_name: str = None
-    locality_name: str = None
-    organization_name: str = None
-    organizational_unit_name: str = None
-    common_name: str = None
+    countryName: str = None
+    stateOrProvinceName: str = None
+    localityName: str = None
+    organizationName: str = None
+    organizationalUnitName: str = None
+    commonName: str = None
 
 
 @dataclass
@@ -162,8 +162,10 @@ class CAProfile:
 class OpenSSLConfig(CryptoConfig):
     """OpenSSL module configuration."""
 
-    uid: int
-    gid: int
+    __path__: ClassVar[str] = "openssl"
+    __config_dir__: ClassVar[str] = f"{os.getenv("CONFIG_DIR", os.getcwd()).rstrip("/")}"
+    __config_file__: ClassVar[str] = f"{__config_dir__}/openssl.yaml"
+
     bin: str
     ca_profiles: Optional[list[CAProfile]]
     default_config_template: str = 'openssl.conf.j2'

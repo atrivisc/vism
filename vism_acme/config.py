@@ -1,11 +1,13 @@
 """Configuration module for VISM ACME server."""
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import base64
+import os
 import socket
 import ipaddress
 import logging
-from typing import Optional
+from dataclasses import field
+from typing import Optional, ClassVar
 
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -14,8 +16,7 @@ from cryptography.x509 import CertificateSigningRequest, Extension
 from pydantic import field_validator
 from pydantic.dataclasses import dataclass
 
-from shared.config import Config
-from shared.db import Database
+from shared.config import VismConfig
 from shared.util import (
     is_valid_subnet,
     snake_to_camel,
@@ -463,37 +464,22 @@ class API:
 acme_logger = logging.getLogger("vism_acme")
 
 
-class AcmeConfig(Config):
+@dataclass
+class AcmeConfig(VismConfig):
     """Main configuration class for VISM ACME server."""
 
-    log_conf = {
-        "log_root": "vism_acme",
-        "log_file": "vism_acme.log",
-        "error_file": "vism_acme_error.log",
-    }
-    conf_path = "vism_acme"
+    __path__: ClassVar[str] = "vism_acme"
+    __config_dir__: ClassVar[str] = f"{os.getenv("CONFIG_DIR", os.getcwd()).rstrip("/")}"
+    __config_file__: ClassVar[str] = f"{__config_dir__}/vism_acme.yaml"
 
-    def __init__(self, config_file_path: str):
-        super().__init__(config_file_path)
+    profiles: list[Profile] = field(default_factory=list)
+    http01: Http01 = field(default_factory=Http01)
+    api: API = field(default_factory=API)
+    nonce_ttl_seconds: str = "300"
+    retry_after_seconds: str = "5"
+    default_profile: Profile = field(init=False)
 
-        acme_logger.info("Loading ACME config")
-
-        acme_config = self.raw_config_data.get("vism_acme", {})
-        self.database = Database(**acme_config.get("database", {}))
-        self.profiles = [
-            Profile(**profile)
-            for profile in acme_config.get("profiles", {})
-        ]
-        self.default_profile: Optional[Profile] = None
-        self.http01 = Http01(**acme_config.get("http01", {}))
-        self.api = API(**acme_config.get("api", {}))
-        self.nonce_ttl_seconds = str(
-            acme_config.get("nonce_ttl_seconds", 300)
-        )
-        self.retry_after_seconds = str(
-            acme_config.get("retry_after_seconds", 5)
-        )
-
+    def __post_init__(self):
         self.validate_config()
 
     def validate_config(self):

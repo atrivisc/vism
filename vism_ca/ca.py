@@ -1,17 +1,15 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
-
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Main Vism CA class and entrypoint."""
 
 import asyncio
 import logging
-import os
 from random import randint
 import aiocron
 from shared.controller import Controller
 from shared.errors import VismBreakingException, VismException
 from vism_ca import VismCADatabase, CAConfig, Certificate
 
-ca_logger = logging.getLogger("vism_ca")
+ca_logger = logging.getLogger("vism")
 
 class VismCA(Controller):
     """
@@ -25,25 +23,11 @@ class VismCA(Controller):
     :type databaseClass: Type[Database]
     :ivar configClass: The configuration class for the CA.
     :type configClass: Type[Config]
-    :ivar config_file_path: File path to the CA configuration file, defaulting to './config.yaml' or
-        customizable via the environment variable `CONFIG_FILE_PATH`.
-    :type config_file_path: str
-    :ivar config: The loaded configuration instance for the CA.
-    :type config: CAConfig
     """
+
     databaseClass = VismCADatabase
     configClass = CAConfig
-    config_file_path = os.environ.get('CONFIG_FILE_PATH', './config.yaml')
-    config: CAConfig = None
-
-    def __init__(self):
-        super().__init__()
-        self.database = self.databaseClass(self.config.database, self.validation_module)
-
-    def shutdown(self):
-        """Initiates shutdown of the CA."""
-        ca_logger.info("Received shutdown signal, shutting down")
-        self._shutdown_event.set()
+    config: CAConfig
 
     @aiocron.crontab(f'{randint(0, 60)} {randint(0, 23)} * * *')
     async def _update_crl(self):
@@ -81,6 +65,7 @@ class VismCA(Controller):
             try:
                 cert = Certificate(self, cert_config.name)
                 cert.create()
+                ca_logger.info("Created CA certificate '%s'", cert_config.name)
             except Exception as e:
                 if cert is not None:
                     cert.crypto_module.cleanup(full=True)
@@ -88,7 +73,6 @@ class VismCA(Controller):
                     f"Failed to create CA certificate '{cert_config.name}': {e}"
                 ) from e
             finally:
-                ca_logger.info("Created CA certificate '%s'", cert_config.name)
                 if cert is not None:
                     cert.crypto_module.cleanup(full=True)
         ca_logger.info("CA certificates created")

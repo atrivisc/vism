@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """PKCS#11 cryptographic module implementation."""
 
 import base64
@@ -378,13 +378,13 @@ class PKCS11(Data):
     """PKCS#11 implementation of Data validation module."""
 
     configClass = PKCS11Config
-    config_path: str = "pkcs11"
+    config: PKCS11Config
 
     def __init__(self, *args, **kwargs):
         module_logger.debug("Initializing PKCS11 module")
         super().__init__(*args, **kwargs)
-        self.config: Optional[PKCS11Config] = None
         self.chroot: Optional[Chroot] = None
+        self.create_chroot_environment()
 
     @staticmethod
     def _get_hashing_algorithm(
@@ -400,12 +400,6 @@ class PKCS11(Data):
                 return hashes.SHA3_256()
             case HashingAlgorithmsName.SHA3_512:
                 return hashes.SHA3_512()
-
-    def load_config(self, config_data: dict) -> None:
-        """Load configuration and create chroot environment."""
-        module_logger.debug("Loading config for PKCS11 module")
-        super().load_config(config_data)
-        self.create_chroot_environment()
 
     def get_key_config_by_label(
             self,

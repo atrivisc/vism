@@ -1,18 +1,21 @@
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Data exchange module for inter-component communication."""
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import json
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
-from typing import Optional
-
 from shared import shared_logger
+from shared.config import Config
+from shared.data.validation import Data
 
 
 @dataclass
-class DataExchangeConfig:
+class DataExchangeConfig(Config):
     """Base configuration class for data exchange modules."""
-
+    data_encryption_module: str
+    data_encryption_key: str
+    data_validation_module: str
+    data_validation_key: str
 
 @dataclass
 class DataExchangeMessage:
@@ -71,7 +74,6 @@ class DataExchange(metaclass=ABCMeta):
     """Abstract base class for data exchange implementations."""
 
     configClass = DataExchangeConfig
-    config_path: str = None
 
     def __init__(self, controller):
         shared_logger.info(
@@ -79,15 +81,31 @@ class DataExchange(metaclass=ABCMeta):
             self.__class__.__name__
         )
         self.controller = controller
-        self.raw_config: Optional[dict] = None
-        self.config: Optional[DataExchangeConfig] = None
+        self.config: DataExchangeConfig = self.configClass.load()
+        self.encryption_module = self._setup_encryption_module()
+        self.validation_module = self._setup_validation_module()
 
-    def load_config(self, config_data: dict) -> None:
-        """Load configuration from config data dictionary."""
-        self.raw_config = config_data
-        self.config = self.configClass(
-            **config_data.get(self.config_path, {})
+    def _setup_encryption_module(self) -> Data:
+        module_name = f'modules.{self.config.data_encryption_module}'
+        encryption_module_imports = __import__(
+            module_name,
+            fromlist=['Module', 'ModuleConfig']
         )
+        encryption_module = encryption_module_imports.Module(
+            encryption_key=self.config.data_encryption_key,
+        )
+        return encryption_module
+
+    def _setup_validation_module(self) -> Data:
+        module_name = f'modules.{self.config.data_validation_module}'
+        validation_module_imports = __import__(
+            module_name,
+            fromlist=['Module', 'ModuleConfig']
+        )
+        validation_module = validation_module_imports.Module(
+            validation_key=self.config.data_validation_key,
+        )
+        return validation_module
 
     async def cleanup(self, full: bool = False):
         """Clean up resources used by the data exchange module."""

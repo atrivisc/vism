@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """RabbitMQ module for secure message exchange in VISM."""
 
 import asyncio
@@ -6,7 +6,6 @@ import base64
 import json
 import socket
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
 from typing import AsyncGenerator, Optional
 
 import aio_pika
@@ -15,89 +14,27 @@ from aio_pika.abc import AbstractRobustChannel, AbstractIncomingMessage
 from aiormq import AMQPConnectionError
 
 from modules import module_logger
+from modules.rabbitmq.config import RabbitMQConfig
 from modules.rabbitmq.errors import RabbitMQError
 from shared.data.exchange import (
     DataExchange,
-    DataExchangeConfig,
     DataExchangeCSRMessage,
     DataExchangeMessage,
     DataExchangeCertMessage
 )
-from shared.data.validation import Data
 from vism_ca import Certificate
 
-
-@dataclass
-class RabbitMQConfig(DataExchangeConfig): # pylint: disable=too-many-instance-attributes
-    """Configuration for RabbitMQ module."""
-    host: str
-    port: int
-    user: str
-    password: str
-    vhost: str
-
-    data_encryption_key: str
-    data_encryption_module: str
-    data_validation_key: str
-    data_validation_module: str
-
-    peer_encryption_public_key_pem: str
-    peer_validation_public_key_pem: str
-
-    csr_queue: str = None
-    cert_queue: str = None
-    csr_exchange: str = None
-    cert_exchange: str = None
-
-    max_retries: int = 5
-    retry_delay_seconds: int = 1
 
 # pylint: disable=too-many-instance-attributes
 class RabbitMQ(DataExchange):
     """RabbitMQ implementation of DataExchange."""
     configClass = RabbitMQConfig
-    config_path: str = "rabbitmq"
-
     config: RabbitMQConfig
 
     def __init__(self, *args, **kwargs):
         module_logger.debug("Initializing RabbitMQ module")
         super().__init__(*args, **kwargs)
-        self.encryption_module: Optional[Data] = None
-        self.validation_module: Optional[Data] = None
         self.connection: Optional[aio_pika.Connection] = None
-
-    def load_config(self, config_data: dict) -> None:
-        module_logger.debug("Loading config for RabbitMQ module")
-        super().load_config(config_data)
-        self.encryption_module = self._setup_encryption_module()
-        self.validation_module = self._setup_validation_module()
-
-    def _setup_encryption_module(self) -> Data:
-        module_name = f'modules.{self.config.data_encryption_module}'
-        encryption_module_imports = __import__(
-            module_name,
-            fromlist=['Module', 'ModuleConfig']
-        )
-        encryption_module = encryption_module_imports.Module(
-            encryption_key=self.config.data_encryption_key,
-        )
-        encryption_module.load_config(self.raw_config)
-
-        return encryption_module
-
-    def _setup_validation_module(self) -> Data:
-        module_name = f'modules.{self.config.data_validation_module}'
-        validation_module_imports = __import__(
-            module_name,
-            fromlist=['Module', 'ModuleConfig']
-        )
-        validation_module = validation_module_imports.Module(
-            validation_key=self.config.data_validation_key,
-        )
-        validation_module.load_config(self.raw_config)
-
-        return validation_module
 
     async def cleanup(self, full: bool = False):
         """Clean up RabbitMQ resources."""

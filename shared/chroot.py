@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Chroot utility for isolated filesystem operations."""
 
 import os
@@ -18,10 +18,10 @@ class Chroot:
     """Chroot environment for isolated file operations."""
 
     def __init__(self, chroot_dir: str):
-        self.unshare_cmd = [
-            'unshare', '-muinpUCT', '-r', 'chroot', chroot_dir
-        ]
         self.chroot_dir = f"{chroot_dir.rstrip(' / ')}/{uuid.uuid4()}"
+        self.unshare_cmd = [
+            'unshare', '-muinpUCT', '-r', 'chroot', self.chroot_dir
+        ]
 
     def read_file_bytes(self, path: str) -> bytes:
         """Read file contents as bytes."""
@@ -86,7 +86,7 @@ class Chroot:
 
     def write_file(self, path: str, contents: bytes):
         """Write contents to a file in chroot."""
-        shared_logger.debug("Writing file: %s | %s", path, contents)
+        shared_logger.debug("Writing file: %s", path)
         directory = os.path.dirname(
             f'{self.chroot_dir}/{path.lstrip("/")}'
         )
@@ -136,6 +136,7 @@ class Chroot:
             input=stdin,
             text=True,
             env=environment,
-            check=False
+            check=False,
+            timeout=10
         )
         return result

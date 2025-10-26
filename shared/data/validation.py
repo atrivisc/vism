@@ -1,11 +1,11 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Data validation and cryptography module interfaces."""
 
 from abc import ABCMeta, abstractmethod
 from dataclasses import dataclass
 from typing import Optional
-
 from shared import shared_logger
+from shared.config import Config
 from shared.errors import VismException
 
 
@@ -19,7 +19,7 @@ class DataModuleConfig:
 
 
 @dataclass
-class DataConfig:
+class DataConfig(Config):
     """Configuration class for data operations."""
 
 
@@ -27,7 +27,6 @@ class Data(metaclass=ABCMeta):
     """Abstract base class for data validation and encryption modules."""
 
     configClass = DataConfig
-    config_path: str = None
 
     def __init__(
             self,
@@ -35,19 +34,10 @@ class Data(metaclass=ABCMeta):
             encryption_key: str = None,
             validation_key: str = None
     ):
-        shared_logger.info(
-            "Initializing Data module: %s",
-            self.__class__.__name__
-        )
-        self.config: Optional[DataConfig] = None
+        shared_logger.info("Initializing Data module: %s", self.__class__.__name__)
+        self.config: Optional[DataConfig] = self.configClass.load()
         self.encryption_key = encryption_key
         self.validation_key = validation_key
-
-    def load_config(self, config_data: dict) -> None:
-        """Load configuration from config data dictionary."""
-        self.config = self.configClass(
-            **config_data.get(self.config_path, {})
-        )
 
     @abstractmethod
     def decrypt(self, data: bytes) -> bytes:

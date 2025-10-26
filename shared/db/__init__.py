@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Shared database models and utilities for VISM components."""
 
 import base64
@@ -7,9 +7,6 @@ from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, Generator, Type
 from uuid import UUID, uuid4
-
-from pydantic import field_validator
-from pydantic.dataclasses import dataclass
 from sqlalchemy import Uuid, String, DateTime, func
 from sqlalchemy import ColumnExpressionArgument
 from sqlalchemy.orm import (
@@ -21,29 +18,10 @@ from sqlalchemy.orm import (
     Session
 )
 from sqlalchemy.engine import URL, create_engine
-
+from shared.config import DatabaseConfig
 from shared.errors import VismDatabaseException
 from shared import shared_logger
 from shared.data.validation import Data
-
-
-@dataclass
-class Database:
-    """Database connection configuration."""
-
-    host: str = ""
-    port: int = 3306
-    database: str = ""
-    username: str = ""
-    password: str = ""
-
-    @field_validator("port")
-    @classmethod
-    def port_must_be_valid(cls, v):
-        """Validate that port is in valid range."""
-        if v < 1 or v > 65535:
-            raise ValueError("Port must be between 1 and 65535")
-        return v
 
 
 class Base(MappedAsDataclass, DeclarativeBase):
@@ -58,13 +36,13 @@ class Base(MappedAsDataclass, DeclarativeBase):
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime,
-        server_default=func.now,
+        server_default=func.now(),
         init=False
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
-        server_default=func.now,
-        onupdate=func.now,
+        server_default=func.now(),
+        onupdate=func.now(),
         init=False
     )
 
@@ -99,12 +77,12 @@ class Base(MappedAsDataclass, DeclarativeBase):
 class VismDatabase:
     """Database interface for VISM operations."""
 
-    def __init__(self, database_config: Database, validation_module: Data):
+    def __init__(self, database_config: DatabaseConfig, validation_module: Data):
         shared_logger.info("Initializing database")
         self.validation_module = validation_module
 
         self.db_url = URL.create(
-            drivername="postgresql+psycopg2",
+            drivername=database_config.driver,
             username=database_config.username,
             password=database_config.password,
             host=database_config.host,
@@ -134,9 +112,7 @@ class VismDatabase:
             Single entity, list of entities, or None
         """
         with self._get_session() as session:
-            objs: list[Base] = session.query(obj_type).filter(
-                *criterion
-            ).all()
+            objs: list[Base] = session.query(obj_type).filter(*criterion).all()
             for obj in objs:
                 obj.validate(self.validation_module)
             if not multiple:

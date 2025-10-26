@@ -1,7 +1,10 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """PKCS#11 module configuration classes."""
-
+import os
+import re
 from enum import Enum
+from typing import ClassVar
+
 from pydantic.dataclasses import dataclass
 from shared.data.validation import DataConfig
 
@@ -36,6 +39,10 @@ class PKCS11KeyConfig:
 class PKCS11Config(DataConfig):
     """Main configuration for PKCS#11 module."""
 
+    __path__: ClassVar[str] = "pkcs11"
+    __config_dir__: ClassVar[str] = f"{os.getenv("CONFIG_DIR", os.getcwd()).rstrip("/")}"
+    __config_file__: ClassVar[str] = f"{__config_dir__}/pkcs11.yaml"
+
     private_keys: list[PKCS11KeyConfig]
 
     chroot_dir: str = "/tmp/chroot"
@@ -44,3 +51,11 @@ class PKCS11Config(DataConfig):
 
     additional_chroot_files: list[str] = None
     additional_chroot_dirs: list[str] = None
+
+
+LOGGING_SENSITIVE_PATTERNS = {
+    'pkcs11_pin': {
+        'pattern': re.compile(r'(--pin\s)\S+'),
+        'replace': r'\1[REDACTED]'
+    }
+}

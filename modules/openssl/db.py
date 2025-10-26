@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL module database models."""
 
 from typing import Optional
@@ -8,7 +8,7 @@ from shared.db import Base
 from vism_ca import ModuleData
 
 
-class OpenSSLData(Base, ModuleData):
+class OpenSSLData(ModuleData, Base):
     """Database entity for OpenSSL module data."""
 
     __tablename__ = 'openssl_data'

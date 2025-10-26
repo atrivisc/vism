@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 """
 Configuration module for Vism CA.
@@ -8,22 +8,14 @@ configuration, certificate configuration, and the main CA configuration class.
 """
 
 import logging
+import os
 from dataclasses import dataclass
-from shared.config import ModuleArgsConfig, Config
+from typing import ClassVar
+from pydantic.dataclasses import dataclass as pydantic_dataclass
+from shared.config import ModuleArgsConfig, VismConfig
 from vism_ca import CertConfigNotFound
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass
-class Database:
-    """Database configuration for Vism CA."""
-
-    host: str
-    port: int
-    database: str
-    username: str
-    password: str
 
 
 @dataclass
@@ -32,8 +24,7 @@ class CertificateConfig:
 
     name: str
     module: str
-    module_args: ModuleArgsConfig
-
+    module_args: dict | ModuleArgsConfig
     signed_by: str = None
     externally_managed: bool = False
     certificate_pem: str = None
@@ -48,28 +39,17 @@ class CertificateConfig:
             self.module_args = module_import.ModuleArgsConfig(**self.module_args) # pylint: disable=not-a-mapping
 
 
-ca_logger = logging.getLogger("vism_ca")
+ca_logger = logging.getLogger("vism")
 
-
-class CAConfig(Config):
+@pydantic_dataclass
+class CAConfig(VismConfig):
     """Main configuration class for Vism CA."""
 
-    log_conf = {
-        "log_root": "vism_ca",
-        "log_file": "vism_ca.log",
-        "error_file": "vism_ca_error.log",
-    }
-    conf_path = "vism_ca"
+    __path__: ClassVar[str] = "vism_ca"
+    __config_dir__: ClassVar[str] = f"{os.getenv("CONFIG_DIR", os.getcwd()).rstrip("/")}"
+    __config_file__: ClassVar[str] = f"{__config_dir__}/vism_ca.yaml"
 
-    def __init__(self, config_file_path: str):
-        super().__init__(config_file_path)
-
-        ca_config = self.raw_config_data.get(self.conf_path, {})
-        self.database = Database(**ca_config.get("database", {}))
-        self.x509_certificates: list[CertificateConfig] = [
-            CertificateConfig(**cert)
-            for cert in ca_config.get("x509_certificates", [])
-        ]
+    x509_certificates: list[CertificateConfig] = None
 
     def get_cert_config_by_name(self, cert_name: str) -> CertificateConfig:
         """

@@ -1,4 +1,4 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 """
 Database module for Vism CA.
@@ -7,19 +7,14 @@ This module provides database models and operations for the Vism CA,
 including certificate entities and database management.
 """
 
-from abc import ABCMeta
-from datetime import datetime
 from typing import Optional
-
-from pydantic.dataclasses import dataclass
-from sqlalchemy import String, Text, Boolean, DateTime, func
+from sqlalchemy import String, Text, Boolean
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column
 from shared.db import Base, VismDatabase
 
 
-@dataclass
-class ModuleData(metaclass=ABCMeta):
+class ModuleData:
     """Base class for module-specific data storage."""
 
 
@@ -48,16 +43,6 @@ class CertificateEntity(Base):
     )
     module: Mapped[Optional[str]] = mapped_column(
         String, nullable=True, default=None
-    )
-
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime, server_default=func.now(), init=False  # pylint: disable=not-callable
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        server_default=func.now(),  # pylint: disable=not-callable
-        onupdate=func.now(),  # pylint: disable=not-callable
-        init=False
     )
 
     def to_dict(self):
@@ -95,4 +80,8 @@ class VismCADatabase(VismDatabase):
         Returns:
             CertificateEntity if found, None otherwise
         """
-        return self.get(CertificateEntity, CertificateEntity.name == name)
+        with self._get_session() as session:
+            obj: CertificateEntity = session.query(
+                CertificateEntity
+            ).filter(CertificateEntity.name == name).first()
+            return obj

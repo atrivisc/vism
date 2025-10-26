@@ -1,8 +1,9 @@
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Shared exception classes for VISM components."""
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import logging
-from shared import shared_logger
+
+shared_logger = logging.getLogger("vism_shared")
 
 
 class VismBreakingException(SystemExit):

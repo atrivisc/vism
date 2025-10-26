@@ -1,20 +1,15 @@
-# Licensed under the GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
-
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """VISM ACME Controller module for handling ACME protocol operations."""
 
 import asyncio
-import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-
 from cryptography import x509
 from cryptography.exceptions import InvalidSignature
 from fastapi import FastAPI
 from starlette.responses import JSONResponse
-
 from shared.controller import Controller
-from shared.data.exchange import DataExchangeCertMessage, DataExchange
-from shared.data.validation import Data
+from shared.data.exchange import DataExchangeCertMessage
 from shared.errors import VismException
 from vism_acme import AcmeConfig, acme_logger, ACMEProblemResponse
 from vism_acme.db import VismAcmeDatabase, ErrorEntity, OrderStatus, OrderEntity
@@ -25,14 +20,11 @@ from vism_acme.util import NonceManager
 class VismACMEController(Controller):
     """Controller class for VISM ACME server operations."""
 
-    config_file_path: str = os.environ.get('CONFIG_FILE_PATH', './acme_config.yaml')
     configClass = AcmeConfig
+    databaseClass = VismAcmeDatabase
 
     def __init__(self):
-        self.config = self.configClass(self.config_file_path)
         super().__init__()
-
-        self.database = VismAcmeDatabase(self.config.database, self.validation_module)
         self.nonce_manager = NonceManager(self.config)
         self.api = FastAPI(lifespan=self.lifespan)
 
@@ -138,7 +130,7 @@ class VismACMEController(Controller):
             error = ErrorEntity(
                 type="invalidOrder",
                 title="Failed to validate CA csr response",
-                detail=str(exc)
+                detail=error_detail
             )
             order.set_error(error)
             raise VismException(error_detail) from exc
