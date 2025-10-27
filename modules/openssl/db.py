@@ -14,9 +14,6 @@ class OpenSSLData(ModuleData, Base):
     __tablename__ = 'openssl_data'
 
     cert_name: Mapped[str] = mapped_column(String)
-    cert_serial: Mapped[Optional[str]] = mapped_column(
-        String, nullable=True, default=None
-    )
     database: Mapped[Optional[str]] = mapped_column(
         Text, nullable=True, default=None
     )
@@ -31,7 +28,6 @@ class OpenSSLData(ModuleData, Base):
         """Convert entity to dictionary."""
         return {
             "cert_name": self.cert_name,
-            "cert_serial": self.cert_serial,
             "database": self.database,
             "serial": self.serial,
             "crlnumber": self.crlnumber,

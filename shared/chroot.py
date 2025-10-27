@@ -65,7 +65,8 @@ class Chroot:
         shared_logger.debug("Creating folder: %s", folder)
         os.makedirs(
             f'{self.chroot_dir}/{folder.lstrip("/")}',
-            exist_ok=True
+            exist_ok=True,
+            mode=0o700
         )
 
     def copy_folder(self, src: str):
@@ -76,13 +77,14 @@ class Chroot:
             f'{self.chroot_dir}/{src.lstrip("/")}',
             dirs_exist_ok=True
         )
+        os.chmod(f'{self.chroot_dir}/{src.lstrip("/")}', 0o700)
 
     def copy_file(self, src: str):
         """Copy a file into chroot."""
         shared_logger.debug("Copying file: %s", src)
         self.create_folder(os.path.dirname(src))
         dest = f'{self.chroot_dir}/{src.lstrip("/")}'
-        shutil.copy(src, dest, follow_symlinks=True)
+        shutil.copy2(src, dest, follow_symlinks=True)
 
     def write_file(self, path: str, contents: bytes):
         """Write contents to a file in chroot."""
@@ -90,7 +92,7 @@ class Chroot:
         directory = os.path.dirname(
             f'{self.chroot_dir}/{path.lstrip("/")}'
         )
-        os.makedirs(directory, exist_ok=True)
+        os.makedirs(directory, exist_ok=True, mode=0o700)
 
         real_path = f"{self.chroot_dir}/{path.lstrip('/')}"
         if os.path.exists(real_path):

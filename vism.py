@@ -27,6 +27,7 @@ def main() -> Optional[Any]:
     ca_parser = component_subparsers.add_parser('ca', help='CA')
     ca_subparser = ca_parser.add_subparsers(dest='ca_command', required=True, help='ca command')
     ca_subparser.add_parser('start', help='Run the CA api')
+    ca_subparser.add_parser('update_crl', help='Update Certificate Revocation Lists')
 
     ### Acme ###
     acme_parser = component_subparsers.add_parser('acme', help='ACME')
@@ -38,6 +39,10 @@ def main() -> Optional[Any]:
     if args.component == 'ca':
         if args.ca_command == 'start':
             vism_ca.main()
+        if args.ca_command == 'update_crl':
+            vism_ca.main(function="update_crl")
+
+
 
     if args.component == 'acme':
         if args.acme_command == 'start':

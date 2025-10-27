@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from enum import Enum
 from uuid import UUID
 
-from sqlalchemy import String, DateTime, func, ForeignKey, Uuid, Boolean
+from sqlalchemy import String, ForeignKey, Uuid, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.orm import Mapped
 from sqlalchemy.orm import mapped_column

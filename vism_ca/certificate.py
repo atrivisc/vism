@@ -70,16 +70,17 @@ class Certificate:
         private_key = self.ca.encryption_module.decrypt(
             encrypted_private_key
         ).decode("utf-8")
+        self.cryptoCert.key_pem = private_key
 
         try:
-            crl_pem = self.crypto_module.generate_crl(
-                self.config, private_key, self.db_entity.crt_pem
-            )
+            self.cryptoCert = self.crypto_module.generate_crl(self.cryptoCert)
         finally:
             del private_key
 
-        self.db_entity.crl_pem = crl_pem
+        self.db_entity.crl_pem = self.cryptoCert.crl_pem
         self.db_entity = self.ca.database.save_to_db(self.db_entity)
+
+        self.cryptoCert.key_pem = self.db_entity.pkey_pem = encrypted_private_key_b64u
 
     def sign_csr(
         self, csr_pem: str, module_args_dict: dict, acme: bool = False

@@ -3,8 +3,6 @@
 
 import asyncio
 import logging
-from random import randint
-import aiocron
 from shared.controller import Controller
 from shared.errors import VismBreakingException, VismException
 from vism_ca import VismCADatabase, CAConfig, Certificate
@@ -29,9 +27,8 @@ class VismCA(Controller):
     configClass = CAConfig
     config: CAConfig
 
-    @aiocron.crontab(f'{randint(0, 60)} {randint(0, 23)} * * *')
-    async def _update_crl(self):
-        """Periodically updates CRLs for all certificates managed by the CA."""
+    async def update_crl(self):
+        """Updates CRLs for all certificates managed by the CA."""
         ca_logger.info("Updating CRLs for internally managed certificates")
         for cert_config in self.config.x509_certificates:
             if cert_config.externally_managed:
@@ -77,11 +74,14 @@ class VismCA(Controller):
                     cert.crypto_module.cleanup(full=True)
         ca_logger.info("CA certificates created")
 
-def main():
+def main(function: str = None):
     """Async entrypoint for the CA."""
     ca = VismCA()
     try:
-        asyncio.run(ca.run())
+        if function is None:
+            asyncio.run(ca.run())
+        if function == "update_crl":
+            asyncio.run(ca.update_crl())
     except KeyboardInterrupt:
         ca.shutdown()
 

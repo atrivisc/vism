@@ -197,13 +197,18 @@ class RabbitMQ(DataExchange):
         """Get a RabbitMQ channel."""
         module_logger.debug("Opening a RabbitMQ connection")
         if self.connection is None:
-            self.connection = await aio_pika.connect_robust(
-                host=self.config.host,
-                port=self.config.port,
-                login=self.config.user,
-                password=self.config.password,
-                virtualhost=self.config.vhost,
-            )
+            try:
+                self.connection = await aio_pika.connect_robust(
+                    host=self.config.host,
+                    port=self.config.port,
+                    login=self.config.user,
+                    password=self.config.password,
+                    virtualhost=self.config.vhost,
+                )
+            except AMQPConnectionError as e:
+                raise RabbitMQError(
+                    f"Failed to connect to RabbitMQ: {e}"
+                ) from e
         try:
             channel = self.connection.channel(**kwargs)
             yield channel
