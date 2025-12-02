@@ -1,9 +1,10 @@
+# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL cryptographic module implementation."""
 import re
-# Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import shutil
 import textwrap
+import random
 from dataclasses import dataclass
 from typing import Optional
 
@@ -105,7 +106,6 @@ class OpenSSL(CryptoModule):
             self.config.default_config_template
         )
 
-        config_template = ""
         template_path = (
             f'modules/openssl/templates/{openssl_config_template_path}'
         )
@@ -162,7 +162,7 @@ class OpenSSL(CryptoModule):
             if not openssl_data.database:
                 openssl_data.database = ""
             if not openssl_data.serial:
-                openssl_data.serial = "01"
+                openssl_data.serial = f"{random.randint(10000, 99999)}"
             if not openssl_data.crlnumber:
                 openssl_data.crlnumber = "01"
 
@@ -332,6 +332,9 @@ class OpenSSL(CryptoModule):
                 f"-gencrl "
                 f"-out -"
             )
+            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
+            if engine_args:
+                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
         else:
             self.cleanup()
             raise GenPKEYException(
@@ -403,8 +406,10 @@ class OpenSSL(CryptoModule):
             raise GenCSRException(f"Failed to generate csr: {output.stderr}")
 
         csr_pem = self.chroot.read_file("/tmp/csr.pem")
-        self.cleanup()
         cert.csr_pem = csr_pem
+
+        self.cleanup()
+
         return cert
 
     def generate_private_key(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
@@ -502,6 +507,10 @@ class OpenSSL(CryptoModule):
 
     def cleanup(self, full: bool = False):
         """Clean up temporary files in chroot."""
+        module_logger.debug(
+            "Cleaning up OpenSSL environment. Full: %s", full
+        )
+
         try:
             self.chroot.delete_folder("/tmp")
         except FileNotFoundError:
@@ -509,6 +518,7 @@ class OpenSSL(CryptoModule):
 
         if full:
             self.chroot.delete_folder("/")
+            self.chroot = None
 
     def generate_ca_certificate(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate CA certificate."""

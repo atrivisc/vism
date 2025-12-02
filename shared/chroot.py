@@ -35,7 +35,7 @@ class Chroot:
 
     def read_file(self, path: str) -> str:
         """Read file contents as string."""
-        shared_logger.debug("Reading file: %s", path)
+        shared_logger.debug("Reading file: %s", f"{self.chroot_dir}/{path.lstrip("/")}")
         with open(
             f'{self.chroot_dir}/{path.lstrip("/")}',
             'r',
@@ -45,7 +45,7 @@ class Chroot:
 
     def delete_folder_contents(self, folder: str):
         """Delete all contents of a folder."""
-        shared_logger.debug("Deleting folder contents: %s", folder)
+        shared_logger.debug("Deleting folder contents: %s", f"{self.chroot_dir}/{folder.lstrip("/")}")
         shutil.rmtree(
             f'{self.chroot_dir}/{folder.lstrip("/")}',
             ignore_errors=True
@@ -54,15 +54,12 @@ class Chroot:
 
     def delete_folder(self, folder: str):
         """Delete a folder."""
-        shared_logger.debug("Deleting folder: %s", folder)
-        try:
-            shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}')
-        except FileNotFoundError:
-            pass
+        shared_logger.debug("Deleting folder: %s", f"{self.chroot_dir}/{folder.lstrip("/")}")
+        shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}', ignore_errors=True)
 
     def create_folder(self, folder: str):
         """Create a folder."""
-        shared_logger.debug("Creating folder: %s", folder)
+        shared_logger.debug("Creating folder: %s", f"{self.chroot_dir}/{folder.lstrip("/")}")
         os.makedirs(
             f'{self.chroot_dir}/{folder.lstrip("/")}',
             exist_ok=True,
@@ -88,7 +85,7 @@ class Chroot:
 
     def write_file(self, path: str, contents: bytes):
         """Write contents to a file in chroot."""
-        shared_logger.debug("Writing file: %s", path)
+        shared_logger.debug("Writing file: %s", f"{self.chroot_dir}/{path.lstrip("/")}")
         directory = os.path.dirname(
             f'{self.chroot_dir}/{path.lstrip("/")}'
         )

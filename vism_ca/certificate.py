@@ -41,13 +41,15 @@ class Certificate:
             self.signing_cert = Certificate(ca, self.config.signed_by)
 
         self.db_entity: Optional['CertificateEntity'] = (
-            self.ca.database.get_cert_by_name(self.name)
+            self.ca.database.get_cert_by_name(name)
         )
 
         if self.db_entity is not None:
+            ca_logger.info(f"Certificate {name} found in database.")
             self.cryptoCert = self.crypto_module.cryptoCertClass.from_cert_entity(self.db_entity)
             self.cryptoCert.config = self.config
         else:
+            ca_logger.info(f"Certificate {name} not found in database.")
             self.cryptoCert = self.crypto_module.cryptoCertClass(config=self.config)
 
     def update_crl(self):
@@ -117,7 +119,7 @@ class Certificate:
         """Create certificate."""
         ca_logger.info("Creating certificate '%s'", self.name)
 
-        if self.db_entity and self.db_entity.crt_pem:
+        if self.db_entity and self.db_entity.crt_pem and self.db_entity.crl_pem:
             ca_logger.info(
                 "Certificate '%s' already exists. Skipping create.", self.name
             )
@@ -144,12 +146,12 @@ class Certificate:
             cert_entity = self.ca.database.save_to_db(cert_entity)
             return cert_entity
 
-        if not self.db_entity or not self.db_entity.pkey_pem:
+        if self.db_entity is None or self.db_entity.pkey_pem is None:
             self.cryptoCert = self.crypto_module.generate_private_key(self.cryptoCert)
             self.save_to_db()
 
         try:
-            if not self.db_entity or not self.db_entity.csr_pem:
+            if self.db_entity is None or self.db_entity.csr_pem is None:
                 self.cryptoCert = self.crypto_module.generate_csr(self.cryptoCert)
                 self.save_to_db()
         except:
@@ -166,7 +168,7 @@ class Certificate:
                     f"Please sign '{self.name}' certificate manually and include the pem in the config."
                     f"\n{csr_pem}"
                 )
-            elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (self.db_entity and self.db_entity.crt_pem):
+            elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (self.db_entity is None and self.db_entity.crt_pem is None):
                 self.cryptoCert.crt_pem = self.config.certificate_pem
                 self.save_to_db()
 
@@ -205,6 +207,9 @@ class Certificate:
 
     def save_to_db(self):
         cert_entity = self.cryptoCert.to_cert_entity()
+        if self.db_entity is not None:
+            cert_entity.id = self.db_entity.id
+            cert_entity.signature = self.db_entity.signature
         cert_entity = self.ca.database.save_to_db(cert_entity)
         self.db_entity = cert_entity
         return cert_entity

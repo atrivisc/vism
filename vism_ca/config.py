@@ -39,7 +39,7 @@ class CertificateConfig:
             self.module_args = module_import.ModuleArgsConfig(**self.module_args) # pylint: disable=not-a-mapping
 
 
-ca_logger = logging.getLogger("vism")
+ca_logger = logging.getLogger("vism_ca")
 
 @pydantic_dataclass
 class CAConfig(VismConfig):
