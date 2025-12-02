@@ -54,12 +54,7 @@ class RabbitMQ(DataExchange):
         )
 
         data_json = message.to_json().encode("utf-8")
-        encrypted_message_body = self.encryption_module.encrypt_for_peer(
-            data_json, self.config.peer_encryption_public_key_pem
-        )
-        encrypted_message_signature = self.validation_module.sign(
-            encrypted_message_body
-        )
+        message_signature = self.validation_module.sign(data_json)
 
         async with self._get_channel() as channel:
             await channel.initialize(timeout=30)
@@ -67,11 +62,11 @@ class RabbitMQ(DataExchange):
             exchange_obj = await channel.get_exchange(exchange)
 
             rabbitmq_message: Message = Message(
-                body=encrypted_message_body,
+                body=data_json,
                 headers={
                     "X-Vism-Message-Type": message_type,
                     "X-Vism-Signature": base64.urlsafe_b64encode(
-                        encrypted_message_signature
+                        message_signature
                     ).decode("utf-8"),
                     "Content-Type": "application/octet-stream",
                 }
@@ -155,11 +150,10 @@ class RabbitMQ(DataExchange):
                 message.body,
                 message.headers["X-Vism-Signature"]
             )
-            decrypted_body = self.encryption_module.decrypt(message.body)
 
             if message.headers["X-Vism-Message-Type"] == "csr":
                 csr_message = DataExchangeCSRMessage(
-                    **json.loads(decrypted_body)
+                    **json.loads(message.body)
                 )
                 ca_obj = Certificate(self.controller, csr_message.ca_name)
                 chain = ca_obj.sign_csr(
@@ -172,20 +166,14 @@ class RabbitMQ(DataExchange):
                     ca_name=csr_message.ca_name,
                     profile_name=csr_message.profile_name,
                     original_signature_b64=message.headers["X-Vism-Signature"],
-                    original_encrypted_b64=base64.urlsafe_b64encode(
-                        message.body
-                    ).decode("utf-8"),
                 )
                 await self.send_cert(cert_message)
             elif message.headers["X-Vism-Message-Type"] == "cert":
                 cert_message = DataExchangeCertMessage(
-                    **json.loads(decrypted_body)
-                )
-                original_encrypted = base64.urlsafe_b64decode(
-                    cert_message.original_encrypted_b64
+                    **json.loads(message.body)
                 )
                 self.validation_module.verify(
-                    original_encrypted,
+                    message.body,
                     cert_message.original_signature_b64
                 )
                 await self.controller.handle_chain_from_ca(cert_message)

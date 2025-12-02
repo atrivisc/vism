@@ -20,7 +20,7 @@ class Chroot:
     def __init__(self, chroot_dir: str):
         self.chroot_dir = f"{chroot_dir.rstrip(' / ')}/{uuid.uuid4()}"
         self.unshare_cmd = [
-            'unshare', '-muinpUCT', '-r', 'chroot', self.chroot_dir
+            'unshare', '-fmuipUCT', '-r', 'chroot', self.chroot_dir
         ]
 
     def read_file_bytes(self, path: str) -> bytes:
@@ -139,6 +139,6 @@ class Chroot:
             text=True,
             env=environment,
             check=False,
-            timeout=10
+            timeout=60,
         )
         return result

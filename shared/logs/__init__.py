@@ -21,7 +21,7 @@ class LoggingConfig:
     verbose: bool = False
     log_file: str = "app.log"
     error_file: str = "error.log"
-    log_level: str = "INFO"
+    log_level: str = "DEBUG"
 
 
 class SensitiveDataFilter(logging.Filter): # pylint: disable=too-few-public-methods

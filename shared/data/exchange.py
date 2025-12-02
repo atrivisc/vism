@@ -56,7 +56,6 @@ class DataExchangeCertMessage(DataExchangeMessage):
     ca_name: str
     profile_name: str
     original_signature_b64: str
-    original_encrypted_b64: str
 
     def to_json(self) -> str:
         """Convert certificate message to JSON string."""
@@ -66,7 +65,6 @@ class DataExchangeCertMessage(DataExchangeMessage):
             "ca_name": self.ca_name,
             "profile_name": self.profile_name,
             "original_signature_b64": self.original_signature_b64,
-            "original_encrypted_b64": self.original_encrypted_b64,
         })
 
 

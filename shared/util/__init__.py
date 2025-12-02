@@ -10,6 +10,8 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from starlette.requests import Request
 
+def signed32(x):
+    return (x - (1 << 32)) if (x >= (1 << 31)) else x
 
 def is_valid_ip(ip_str):
     """Check if a string is a valid IP address."""

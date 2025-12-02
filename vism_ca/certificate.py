@@ -63,24 +63,10 @@ class Certificate:
                 f"CRL cannot be updated."
             )
 
-        encrypted_private_key_b64u = self.db_entity.pkey_pem
-        encrypted_private_key = base64.urlsafe_b64decode(
-            encrypted_private_key_b64u
-        )
-        private_key = self.ca.encryption_module.decrypt(
-            encrypted_private_key
-        ).decode("utf-8")
-        self.cryptoCert.key_pem = private_key
-
-        try:
-            self.cryptoCert = self.crypto_module.generate_crl(self.cryptoCert)
-        finally:
-            del private_key
+        self.cryptoCert = self.crypto_module.generate_crl(self.cryptoCert)
 
         self.db_entity.crl_pem = self.cryptoCert.crl_pem
         self.db_entity = self.ca.database.save_to_db(self.db_entity)
-
-        self.cryptoCert.key_pem = self.db_entity.pkey_pem = encrypted_private_key_b64u
 
     def sign_csr(
         self, csr_pem: str, module_args_dict: dict, acme: bool = False
@@ -105,15 +91,6 @@ class Certificate:
                 f"Certificate '{self.name}' not found in database."
             )
 
-        encrypted_signing_key_pem_b64 = str(self.db_entity.pkey_pem)
-        encrypted_signing_key_pem = base64.urlsafe_b64decode(
-            encrypted_signing_key_pem_b64
-        )
-        unencrypted_key = self.ca.encryption_module.decrypt(
-            encrypted_signing_key_pem
-        ).decode("utf-8")
-        self.cryptoCert.key_pem = unencrypted_key
-
         module_args: ModuleArgsConfig = (
             self.crypto_module.moduleArgsClass(**module_args_dict)
         )
@@ -121,9 +98,6 @@ class Certificate:
         crypto_cert = self.crypto_module.cryptoCertClass(csr_pem=csr_pem)
         crypto_cert = self.crypto_module.sign_csr(crypto_cert, self.cryptoCert, module_args)
         chain = self.get_chain(acme)
-
-        del unencrypted_key
-        self.cryptoCert.key_pem = self.db_entity.pkey_pem
 
         return f"{crypto_cert.crt_pem}\n{chain}"
 
@@ -143,7 +117,7 @@ class Certificate:
         """Create certificate."""
         ca_logger.info("Creating certificate '%s'", self.name)
 
-        if self.db_entity:
+        if self.db_entity and self.db_entity.crt_pem:
             ca_logger.info(
                 "Certificate '%s' already exists. Skipping create.", self.name
             )
@@ -170,23 +144,31 @@ class Certificate:
             cert_entity = self.ca.database.save_to_db(cert_entity)
             return cert_entity
 
-        self.cryptoCert = self.crypto_module.generate_private_key(self.cryptoCert)
+        if not self.db_entity or not self.db_entity.pkey_pem:
+            self.cryptoCert = self.crypto_module.generate_private_key(self.cryptoCert)
+            self.save_to_db()
 
         try:
-            self.cryptoCert = self.crypto_module.generate_csr(self.cryptoCert)
+            if not self.db_entity or not self.db_entity.csr_pem:
+                self.cryptoCert = self.crypto_module.generate_csr(self.cryptoCert)
+                self.save_to_db()
         except:
             self.crypto_module.cleanup(full=True)
             del self.cryptoCert
             raise
 
         if self.signing_cert is not None:
-            if self.signing_cert.config.externally_managed and (self.config.certificate_pem is None or self.config.crl_pem is None):
+            if self.signing_cert.config.externally_managed and (self.config.certificate_pem is None):
+                csr_pem = self.cryptoCert.csr_pem
                 del self.cryptoCert
                 raise VismBreakingException(
-                    f"Signing certificate '{self.signing_cert.name}' "
-                    f"is externally managed. "
-                    f"Please sign '{self.name}' certificate manually."
+                    f"Signing certificate '{self.signing_cert.name}' is externally managed. "
+                    f"Please sign '{self.name}' certificate manually and include the pem in the config."
+                    f"\n{csr_pem}"
                 )
+            elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (self.db_entity and self.db_entity.crt_pem):
+                self.cryptoCert.crt_pem = self.config.certificate_pem
+                self.save_to_db()
 
             if self.signing_cert.db_entity is None:
                 del self.cryptoCert
@@ -195,24 +177,15 @@ class Certificate:
                     f"not found in database."
                 )
 
-            signing_pkey_encrypted_b64 = self.signing_cert.db_entity.pkey_pem
-            signing_pkey_encrypted = base64.urlsafe_b64decode(signing_pkey_encrypted_b64)
-            signing_pkey_decrypted = self.ca.encryption_module.decrypt(
-                signing_pkey_encrypted
-            ).decode("utf-8")
-
-            self.signing_cert.cryptoCert.key_pem = signing_pkey_decrypted
-
-            try:
-                self.cryptoCert = self.signing_cert.crypto_module.sign_ca_certificate(self.cryptoCert, self.signing_cert.cryptoCert)
-            except:
-                self.crypto_module.cleanup(full=True)
-                del self.cryptoCert
-                raise
-            finally:
-                del signing_pkey_encrypted
-                del signing_pkey_decrypted
-                del self.signing_cert.cryptoCert
+            if not self.db_entity or not self.db_entity.crt_pem:
+                try:
+                    self.cryptoCert = self.signing_cert.crypto_module.sign_ca_certificate(self.cryptoCert, self.signing_cert.cryptoCert)
+                except:
+                    self.crypto_module.cleanup(full=True)
+                    del self.cryptoCert
+                    raise
+                finally:
+                    del self.signing_cert.cryptoCert
         else:
             try:
                 self.cryptoCert = self.crypto_module.generate_ca_certificate(self.cryptoCert)
@@ -228,10 +201,10 @@ class Certificate:
             del self.cryptoCert
             raise
 
-        cert_entity = self.cryptoCert.to_cert_entity()
-        private_key_pem_encrypted = self.ca.encryption_module.encrypt(self.cryptoCert.key_pem.encode("utf-8"))
-        private_key_pem_encrypted_b64u = base64.urlsafe_b64encode(private_key_pem_encrypted).decode("utf-8")
-        cert_entity.pkey_pem = private_key_pem_encrypted_b64u
+        return self.save_to_db()
 
+    def save_to_db(self):
+        cert_entity = self.cryptoCert.to_cert_entity()
         cert_entity = self.ca.database.save_to_db(cert_entity)
+        self.db_entity = cert_entity
         return cert_entity

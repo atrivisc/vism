@@ -108,8 +108,17 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
             f"-o /tmp/aes_key.der "
             f"{self.to_command_args()}"
         )
-        if result.returncode != 0:
-            raise PKCS11Error(f"Failed to derive key: {result.stderr}")
+
+        acceptable_rc = [0]
+        if 'libCryptoki2' in self.module:
+            acceptable_rc = [139, 0, -11]
+
+        if result.returncode not in acceptable_rc:
+            raise PKCS11Error(
+                f"Failed to derive key"
+                f"\nrc: {result.returncode}"
+                f"\nstderr: {result.stderr}"
+            )
 
         shared_secret = self.chroot.read_file_bytes("/tmp/aes_key.der")
         return shared_secret
@@ -178,16 +187,16 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
     def get_public_key(self) -> PublicKeyTypes:
         """Retrieve public key from PKCS#11 module."""
         result = self.chroot.run_command(
-            f"{self.bin} -r --type pubkey "
-            f"-o /tmp/pubkey.der "
-            f"{self.to_command_args()}"
+            f"{self.bin} -r --type pubkey --label {self.config.pubkey_label} "
+            f"-o /pubkey.der "
+            f"{self.to_command_args(args_to_skip=['key_label'])}"
         )
         if result.returncode != 0:
             raise PKCS11FailedToGetPublicKey(
                 f"Failed to load public key: {result.stderr}"
             )
 
-        public_key_der = self.chroot.read_file_bytes("/tmp/pubkey.der")
+        public_key_der = self.chroot.read_file_bytes("/pubkey.der")
         public_key = serialization.load_der_public_key(public_key_der)
         return public_key
 
@@ -424,6 +433,7 @@ class PKCS11(Data):
             self.config.bin_path,
             config=key_config,
             key_label=key_config.label,
+            key_id=key_config.id,
             slot=key_config.slot,
             slot_pin=key_config.slot_pin,
             module=self.config.lib_path
@@ -583,10 +593,14 @@ class PKCS11(Data):
         module_logger.debug(
             "Cleaning up PKCS11 environment. Full: %s", full
         )
-        self.chroot.delete_folder_contents("/tmp")
+
+        try:
+            self.chroot.delete_folder("/tmp")
+        except FileNotFoundError:
+            pass
 
         if full:
-            self.chroot.delete_folder_contents("/")
+            self.chroot.delete_folder("/")
             self.chroot = None
 
     def create_chroot_environment(self):

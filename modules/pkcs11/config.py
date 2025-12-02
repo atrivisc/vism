@@ -29,6 +29,8 @@ class PKCS11KeyConfig:
     """Configuration for a PKCS#11 key."""
 
     label: str
+    id: str
+    pubkey_label: str
     slot: str
     slot_pin: str
     signature_algorithm: SignatureAlgorithmsName = None

@@ -1,16 +1,19 @@
 """OpenSSL cryptographic module implementation."""
+import re
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 
 import shutil
 import textwrap
 from dataclasses import dataclass
+from typing import Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from jinja2 import Template, StrictUndefined
 
 from modules import module_logger
-from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs
+from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs, OpenSSLSupportedEngines, GemEngineArgs, \
+    OpenSSLEngineArgs
 from modules.openssl.db import OpenSSLData
 from shared.util import get_needed_libraries
 from vism_ca import VismCADatabase, CertificateConfig, CryptoModule
@@ -42,6 +45,10 @@ class OpenSSLCryptoCert(CryptoCert):
     @property
     def key_path(self):
         return f"/tmp/{self.config.name}/{self.config.name}.key"
+
+    @property
+    def pub_key_path(self):
+        return f"/tmp/{self.config.name}/{self.config.name}_pub.key"
 
     @property
     def csr_path(self):
@@ -128,6 +135,8 @@ class OpenSSL(CryptoModule):
 
         if cert.key_pem:
             self.chroot.write_file(cert.key_path, cert.key_pem.encode("utf-8"))
+        if cert.pub_key_pem:
+            self.chroot.write_file(cert.pub_key_path, cert.pub_key_pem.encode("utf-8"))
         if cert.csr_pem:
             self.chroot.write_file(cert.csr_path, cert.csr_pem.encode("utf-8"))
         if cert.crt_pem:
@@ -186,6 +195,21 @@ class OpenSSL(CryptoModule):
             self.chroot.copy_file(library)
 
         self.chroot.copy_file(self.openssl_path)
+
+        if self.config.additional_chroot_dirs:
+            for directory in self.config.additional_chroot_dirs:
+                self.chroot.copy_folder(directory)
+
+        if self.config.additional_chroot_files:
+            for file in self.config.additional_chroot_files:
+                self.chroot.copy_file(file)
+
+        if self.config.additional_chroot_libraries:
+            for file in self.config.additional_chroot_libraries:
+                libraries = get_needed_libraries(file)
+                for library in libraries:
+                    self.chroot.copy_file(library)
+                self.chroot.copy_file(file)
 
     def _build_csr_sign_command(
             self,
@@ -289,22 +313,43 @@ class OpenSSL(CryptoModule):
             self.cleanup()
             raise GenCRLException("Cannot generate CRL before certificate.")
 
-        command = (
-            f"{self.openssl_path} ca -batch "
-            f"-keyfile {cert.key_path} "
-            f"-config {cert.config_path} "
-            f"-gencrl "
-            f"-out -"
-        )
-
-        password = cert.config.module_args.key.password
-        if password:
-            command += f" -passin pass:{password}"
+        if cert.config.module_args.engine is None:
+            command = (
+                f"{self.openssl_path} ca -batch "
+                f"-keyfile {cert.key_path} "
+                f"-config {cert.config_path} "
+                f"-gencrl "
+                f"-out -"
+            )
+            password = cert.config.module_args.key.password
+            if password:
+                command += f" -passin pass:{password}"
+        elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            command = (
+                f"{self.openssl_path} ca -engine gem -batch "
+                f"-key {cert.key_pem} -keyform engine -keyfile {cert.pub_key_path} "
+                f"-config {cert.config_path} "
+                f"-gencrl "
+                f"-out -"
+            )
+        else:
+            self.cleanup()
+            raise GenPKEYException(
+                f"Invalid engine value in config: {cert.config.module_args.engine}"
+            )
 
         output = self.chroot.run_command(command)
-        if output.returncode != 0:
+        acceptable_rc = [0]
+        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            acceptable_rc = [139, 0, -11]
+        if output.returncode not in acceptable_rc:
             self.cleanup()
-            raise GenCRLException(f"Failed to generate crl: {output.stderr}")
+            raise GenCRLException(
+                f"Failed to generate crl: "
+                f"\nrc: {output.returncode}"
+                f"\nstderr: {output.stderr}"
+                f"\nstdout: {output.stdout}"
+            )
 
         openssl_data.crlnumber = self.chroot.read_file(cert.crlnumber_path)
         openssl_data.serial = self.chroot.read_file(cert.serial_path)
@@ -326,21 +371,40 @@ class OpenSSL(CryptoModule):
 
         self._create_crt_environment(cert)
 
-        command = (
-            f"{self.openssl_path} req -batch -new "
-            f"-config {cert.config_path} -key {cert.key_path}"
-        )
-        password = cert.config.module_args.key.password
-        if password:
-            command += f" -passin pass:{password}"
+        if cert.config.module_args.engine is None:
+            command = (
+                f"{self.openssl_path} req -batch -new "
+                f"-config {cert.config_path} -key {cert.key_path}"
+            )
+            password = cert.config.module_args.key.password
+            if password:
+                command += f" -passin pass:{password}"
+        elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            command = (
+                f"{self.openssl_path} req -engine gem -config {cert.config_path} -batch -new "
+                f"-key {cert.key_path} -keyform engine -out /tmp/csr.pem"
+            )
+            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
+            if engine_args:
+                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
+        else:
+            self.cleanup()
+            raise GenPKEYException(
+                f"Invalid engine value in config: {cert.config.module_args.engine}"
+            )
 
         output = self.chroot.run_command(command)
-        if output.returncode != 0:
+        acceptable_rc = [0]
+        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            acceptable_rc = [139, 0, -11]
+
+        if output.returncode not in acceptable_rc:
             self.cleanup()
             raise GenCSRException(f"Failed to generate csr: {output.stderr}")
 
+        csr_pem = self.chroot.read_file("/tmp/csr.pem")
         self.cleanup()
-        cert.csr_pem = output.stdout
+        cert.csr_pem = csr_pem
         return cert
 
     def generate_private_key(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
@@ -352,50 +416,87 @@ class OpenSSL(CryptoModule):
         self._create_crt_environment(cert)
 
         key_config = cert.config.module_args.key
-        command = (
-            f"{self.openssl_path} genpkey -config {cert.config_path} "
-            f"-algorithm {key_config.algorithm}"
-        )
+
+        if cert.config.module_args.engine is None:
+            command = (
+                f"{self.openssl_path} genpkey -config {cert.config_path} "
+                f"-algorithm {key_config.algorithm}"
+            )
+            if key_config.password:
+                command += f" -aes-256-cbc -pass pass:{key_config.password}"
+        elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            command = (
+                f"{self.openssl_path} genpkey -engine gem -config {cert.config_path} "
+                f"-algorithm {key_config.algorithm} -out {cert.pub_key_path}"
+            )
+            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
+            if engine_args:
+                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
+
+        else:
+            self.cleanup()
+            raise GenPKEYException(
+                f"Invalid engine value in config: {cert.config.module_args.engine}"
+            )
 
         if key_config.algorithm == "RSA" and key_config.bits:
             command += f" -pkeyopt rsa_keygen_bits:{key_config.bits}"
-        if key_config.password:
-            command += f" -aes-256-cbc -pass pass:{key_config.password}"
 
         output = self.chroot.run_command(command)
-        if output.returncode != 0:
+        acceptable_rc = [0]
+        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            acceptable_rc = [139, 0, -11]
+
+        if output.returncode not in acceptable_rc:
             self.cleanup()
             raise GenPKEYException(
-                f"Failed to generate private key: {output.stderr}"
+                "Failed to generate private key:"
+                f"\nrc: {output.returncode}"
+                f"\nstderr:{output.stderr}"
             )
 
-        try:
-            private_key_pem = output.stdout
-            password_bytes = (
-                key_config.password.encode("utf-8")
-                if key_config.password else None
-            )
-            private_key = serialization.load_pem_private_key(
-                private_key_pem.encode(),
-                password=password_bytes,
-                backend=default_backend()
-            )
-
-            public_key = private_key.public_key()
-            public_key_pem = public_key.public_bytes(
-                encoding=serialization.Encoding.PEM,
-                format=serialization.PublicFormat.SubjectPublicKeyInfo
-            ).decode("utf-8")
-        except Exception as exc:
-            self.cleanup()
+        if 'CKA_ID: ' not in output.stderr:
             raise GenPKEYException(
-                f"Failed to generate private key: {exc}"
-            ) from exc
+                "CKA_ID not found in command stderr stream."
+                "Ensure the LogLevel is set to 6 and that you're using the modified gem engine code."
+            )
+
+        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            stderr_cka_id = [
+                match.group(1) for line in output.stderr.splitlines() if "CKA_ID" in line
+                for match in [re.search(r'"([^"]+)"', line)] if match
+            ]
+            private_key_label = stderr_cka_id[0]
+            private_key_pem = private_key_label
+            public_key_pem = self.chroot.read_file(cert.pub_key_path)
+        else:
+            try:
+                private_key_pem = output.stdout
+                password_bytes = (
+                    key_config.password.encode("utf-8")
+                    if key_config.password else None
+                )
+                private_key = serialization.load_pem_private_key(
+                    private_key_pem.encode(),
+                    password=password_bytes,
+                    backend=default_backend()
+                )
+
+                public_key = private_key.public_key()
+                public_key_pem = public_key.public_bytes(
+                    encoding=serialization.Encoding.PEM,
+                    format=serialization.PublicFormat.SubjectPublicKeyInfo
+                ).decode("utf-8")
+            except Exception as exc:
+                self.cleanup()
+                raise GenPKEYException(
+                    f"Failed to generate private key: {exc}"
+                ) from exc
 
         self.cleanup()
 
         cert.key_pem = private_key_pem
-        cert.public_key_pem = public_key_pem
+        cert.pub_key_pem = public_key_pem
 
         return cert
 

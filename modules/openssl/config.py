@@ -1,5 +1,6 @@
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL module configuration classes."""
+import enum
 import os
 import re
 from dataclasses import dataclass, field
@@ -157,6 +158,18 @@ class CAProfile:
             for data in self.distinguished_name_extensions
         ]
 
+class OpenSSLSupportedEngines(enum.Enum):
+    __all__ = ["gem"]
+    gem = 'gem'
+
+@dataclass
+class OpenSSLEngineArgs:
+    pass
+
+@dataclass
+class GemEngineArgs(OpenSSLEngineArgs):
+    pin: str
+    pin_file: str = "/tmp/passfile"
 
 @dataclass
 class OpenSSLConfig(CryptoConfig):
@@ -168,6 +181,9 @@ class OpenSSLConfig(CryptoConfig):
 
     bin: str
     ca_profiles: Optional[list[CAProfile]]
+    additional_chroot_files: list[str] = None
+    additional_chroot_dirs: list[str] = None
+    additional_chroot_libraries: list[str] = None
     default_config_template: str = 'openssl.conf.j2'
 
     def __post_init__(self):
@@ -210,11 +226,20 @@ class OpenSSLModuleArgs(ModuleArgsConfig):
     key: OpenSSLKeyConfig = None
     days: int = None
     config_template: str = 'openssl.conf.j2'
+    engine: Optional[OpenSSLSupportedEngines] = None
+    engine_args: Optional[OpenSSLEngineArgs] = None
 
     def __post_init__(self):
+        if self.engine and self.engine not in OpenSSLSupportedEngines.__all__:
+            raise ValueError(f"Invalid engine value in openssl config: {self.engine}")
         if self.key is not None:
             if isinstance(self.key, dict):
                 self.key = OpenSSLKeyConfig(**self.key)
+        if self.engine_args is not None:
+            if self.engine == "gem":
+                self.engine_args = GemEngineArgs(**self.engine_args)
+
+
 
 
 LOGGING_SENSITIVE_PATTERNS = {
