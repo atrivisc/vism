@@ -45,14 +45,14 @@ class VismCA(Controller):
             await self.data_exchange_module.receive_csr()
             await self._shutdown_event.wait()
         except asyncio.CancelledError:
-            ca_logger.info("CA shutting down")
-
-        try:
-            await asyncio.shield(self.data_exchange_module.cleanup(full=True))
+            ca_logger.info("CA shutting down.")
+        except Exception as e:
+            ca_logger.critical(f"CA encountered a fatal error: {e}")
+            raise e
+        finally:
             self.encryption_module.cleanup(full=True)
             self.validation_module.cleanup(full=True)
-        except VismException as e:
-            ca_logger.exception("Failed to cleanup data exchange module during shutdown: %s", e)
+            await asyncio.shield(self.data_exchange_module.cleanup(full=True))
 
     async def init_certificates(self):
         """Creates and manages certificates for the CA."""
@@ -63,15 +63,13 @@ class VismCA(Controller):
                 cert = Certificate(self, cert_config.name)
                 cert.create()
                 ca_logger.info("Created CA certificate '%s'", cert_config.name)
+                cert.cleanup()
             except Exception as e:
                 if cert is not None:
-                    cert.crypto_module.cleanup(full=True)
+                    cert.cleanup()
                 raise VismBreakingException(
                     f"Failed to create CA certificate '{cert_config.name}': {e}"
                 ) from e
-            finally:
-                if cert is not None:
-                    cert.crypto_module.cleanup(full=True)
         ca_logger.info("CA certificates created")
 
 def main(function: str = None):

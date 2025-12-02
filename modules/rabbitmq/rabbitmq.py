@@ -39,6 +39,10 @@ class RabbitMQ(DataExchange):
     async def cleanup(self, full: bool = False):
         """Clean up RabbitMQ resources."""
         module_logger.debug("Cleaning up RabbitMQ")
+        if full:
+            self.validation_module.async_cleanup(full=True)
+            self.encryption_module.async_cleanup(full=True)
+
         if self.connection is not None:
             if not self.connection.closed():
                 await self.connection.close()

@@ -10,7 +10,6 @@ Classes:
                  generating, signing, and managing CRLs.
 """
 
-import base64
 from typing import Optional
 from cryptography import x509
 from cryptography.hazmat.backends import default_backend
@@ -51,6 +50,11 @@ class Certificate:
         else:
             ca_logger.info(f"Certificate {name} not found in database.")
             self.cryptoCert = self.crypto_module.cryptoCertClass(config=self.config)
+
+    def cleanup(self):
+        self.crypto_module.cleanup(full=True)
+        if self.signing_cert:
+            self.signing_cert.cleanup()
 
     def update_crl(self):
         """Update CRL for certificate."""

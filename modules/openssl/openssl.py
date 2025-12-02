@@ -511,14 +511,18 @@ class OpenSSL(CryptoModule):
             "Cleaning up OpenSSL environment. Full: %s", full
         )
 
-        try:
-            self.chroot.delete_folder("/tmp")
-        except FileNotFoundError:
-            pass
+        if self.chroot is None:
+            return
 
         if full:
             self.chroot.delete_folder("/")
             self.chroot = None
+            return
+
+        try:
+            self.chroot.delete_folder("/tmp")
+        except FileNotFoundError:
+            pass
 
     def generate_ca_certificate(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate CA certificate."""
