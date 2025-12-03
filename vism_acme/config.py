@@ -165,8 +165,7 @@ class Profile:  # pylint: disable=too-many-instance-attributes
 
     def _validate_extended_key_usage(self, ext: Extension):
         for ext_key_usage in ext.value:
-            if (ext_key_usage.dotted_string not in
-                    self.allowed_extended_key_usage_oids):
+            if ext_key_usage.dotted_string not in self.allowed_extended_key_usage_oids:
                 # pylint: disable=protected-access
                 raise ACMEProblemResponse(
                     error_type="badCSR",

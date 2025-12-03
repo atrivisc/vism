@@ -5,12 +5,11 @@ import asyncio
 import base64
 import json
 import socket
-from contextlib import asynccontextmanager
-from typing import AsyncGenerator, Optional
+from typing import Optional
 
 import aio_pika
 from aio_pika import Message
-from aio_pika.abc import AbstractRobustChannel, AbstractIncomingMessage
+from aio_pika.abc import AbstractIncomingMessage, AbstractRobustConnection
 from aiormq import AMQPConnectionError
 
 from modules import module_logger
@@ -34,7 +33,7 @@ class RabbitMQ(DataExchange):
     def __init__(self, *args, **kwargs):
         module_logger.debug("Initializing RabbitMQ module")
         super().__init__(*args, **kwargs)
-        self.connection: Optional[aio_pika.Connection] = None
+        self._connection: Optional[aio_pika.Connection] = None
 
     async def cleanup(self, full: bool = False):
         """Clean up RabbitMQ resources."""
@@ -43,10 +42,11 @@ class RabbitMQ(DataExchange):
             self.validation_module.async_cleanup(full=True)
             self.encryption_module.async_cleanup(full=True)
 
-        if self.connection is not None:
-            if not self.connection.closed():
-                await self.connection.close()
-            self.connection = None
+        conn = await self.connection
+        if conn is not None:
+            if not conn.is_closed:
+                await conn.close()
+            self._connection = None
 
     async def send_message(
         self, message: DataExchangeMessage, exchange: str,
@@ -60,8 +60,10 @@ class RabbitMQ(DataExchange):
         data_json = message.to_json().encode("utf-8")
         message_signature = self.validation_module.sign(data_json)
 
-        async with self._get_channel() as channel:
-            await channel.initialize(timeout=30)
+        connection = await self.connection
+        async with connection.channel() as channel:
+            if not channel.is_initialized:
+                await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
             exchange_obj = await channel.get_exchange(exchange)
 
@@ -95,8 +97,10 @@ class RabbitMQ(DataExchange):
             "Starting listening for messages from RabbitMQ queue '%s'",
             self.config.cert_queue
         )
-        async with self._get_channel() as channel:
-            await channel.initialize(timeout=30)
+        connection = await self.connection
+        async with connection.channel() as channel:
+            if not channel.is_initialized:
+                await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
             queue = await channel.get_queue(self.config.cert_queue)
 
@@ -115,17 +119,19 @@ class RabbitMQ(DataExchange):
             "Starting listening for messages from RabbitMQ queue '%s'",
             self.config.csr_queue
         )
-        async with self._get_channel() as channel:
-            await channel.initialize(timeout=30)
+        connection = await self.connection
+        async with connection.channel() as channel:
+            if not channel.is_initialized:
+                await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
             queue = await channel.get_queue(self.config.csr_queue)
 
             try:
                 consumer_tag = socket.gethostname()
                 await queue.consume(self.handle_message, consumer_tag=consumer_tag)
-            except AMQPConnectionError:
+            except AMQPConnectionError as e:
                 if retry_count >= self.config.max_retries:
-                    raise
+                    raise e
                 await asyncio.sleep(self.config.retry_delay_seconds)
                 return await self.receive_csr(retry_count=retry_count + 1)
 
@@ -184,13 +190,11 @@ class RabbitMQ(DataExchange):
 
             return None
 
-    @asynccontextmanager
-    async def _get_channel(self, **kwargs) -> AsyncGenerator[AbstractRobustChannel]:
-        """Get a RabbitMQ channel."""
-        module_logger.debug("Opening a RabbitMQ connection")
-        if self.connection is None:
+    @property
+    async def connection(self) -> AbstractRobustConnection:
+        if self._connection is None:
             try:
-                self.connection = await aio_pika.connect_robust(
+                self._connection = await aio_pika.connect_robust(
                     host=self.config.host,
                     port=self.config.port,
                     login=self.config.user,
@@ -201,14 +205,4 @@ class RabbitMQ(DataExchange):
                 raise RabbitMQError(
                     f"Failed to connect to RabbitMQ: {e}"
                 ) from e
-        try:
-            channel = self.connection.channel(**kwargs)
-            yield channel
-        except Exception as e:
-            await self.cleanup()
-            raise RabbitMQError(
-                f"Failed to connect to RabbitMQ: {e}"
-            ) from e
-        finally:
-            await self.cleanup()
-            module_logger.debug("RabbitMQ Connection closed")
+        return self._connection

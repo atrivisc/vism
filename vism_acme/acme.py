@@ -188,7 +188,7 @@ class VismACMEController(Controller):
         yield
         self.validation_module.cleanup(full=True)
         self.encryption_module.cleanup(full=True)
-        await self.data_exchange_module.cleanup(full=True)
+        await asyncio.shield(self.data_exchange_module.cleanup(full=True))
 
     def setup_middleware(self):
         """Configure middleware for the FastAPI application."""
