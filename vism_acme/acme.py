@@ -120,58 +120,58 @@ class VismACMEController(Controller):
 
         ordered_cert = certificates[0]
 
-        # try:
-        #     ordered_cert.verify_directly_issued_by(issuer_x509)
-        # except (ValueError, TypeError, InvalidSignature) as exc:
-        #     error_detail = (
-        #         f"Failed to verify certificate for order "
-        #         f"{cert_message.order_id}: {exc}"
-        #     )
-        #     error = ErrorEntity(
-        #         type="invalidOrder",
-        #         title="Failed to validate CA csr response",
-        #         detail=error_detail
-        #     )
-        #     order.set_error(error)
-        #     raise VismException(error_detail) from exc
-        #
-        # try:
-        #     csr = x509.load_pem_x509_csr(order.csr_pem.encode("utf-8"))
-        # except ValueError as exc:
-        #     error = ErrorEntity(
-        #         type="invalidOrder",
-        #         title="Failed to validate csr",
-        #         detail=str(exc)
-        #     )
-        #     order.set_error(error)
-        #     self.database.save_to_db(order)
-        #     raise VismException(
-        #         f"Failed to verify csr: {exc}"
-        #     ) from exc
-        #
-        # cert_san = ordered_cert.extensions.get_extension_for_oid(
-        #     x509.OID_SUBJECT_ALTERNATIVE_NAME
-        # )
-        # csr_san = csr.extensions.get_extension_for_oid(
-        #     x509.OID_SUBJECT_ALTERNATIVE_NAME
-        # )
-        #
-        # public_key_matches = csr.public_key() == ordered_cert.public_key()
-        # subject_matches = csr.subject == ordered_cert.subject
-        # san_matches = csr_san.value == cert_san.value
-        #
-        # if not (public_key_matches and subject_matches and san_matches):
-        #     order.status = OrderStatus.INVALID
-        #     order.error = ErrorEntity(
-        #         type="invalidOrder",
-        #         title="Failed to validate CA csr response",
-        #         detail="CSR and certificate do not match"
-        #     )
-        #     self.database.save_to_db(order)
-        #     raise VismException(
-        #         f"CSR and certificate do not match for order "
-        #         f"{cert_message.order_id}"
-        #     )
+        try:
+            ordered_cert.verify_directly_issued_by(issuer_x509)
+        except (ValueError, TypeError, InvalidSignature) as exc:
+            error_detail = (
+                f"Failed to verify certificate for order "
+                f"{cert_message.order_id}: {exc}"
+            )
+            error = ErrorEntity(
+                type="invalidOrder",
+                title="Failed to validate CA csr response",
+                detail=error_detail
+            )
+            order.set_error(error)
+            raise VismException(error_detail) from exc
+
+        try:
+            csr = x509.load_pem_x509_csr(order.csr_pem.encode("utf-8"))
+        except ValueError as exc:
+            error = ErrorEntity(
+                type="invalidOrder",
+                title="Failed to validate csr",
+                detail=str(exc)
+            )
+            order.set_error(error)
+            self.database.save_to_db(order)
+            raise VismException(
+                f"Failed to verify csr: {exc}"
+            ) from exc
+
+        cert_san = ordered_cert.extensions.get_extension_for_oid(
+            x509.OID_SUBJECT_ALTERNATIVE_NAME
+        )
+        csr_san = csr.extensions.get_extension_for_oid(
+            x509.OID_SUBJECT_ALTERNATIVE_NAME
+        )
+
+        public_key_matches = csr.public_key() == ordered_cert.public_key()
+        subject_matches = csr.subject == ordered_cert.subject
+        san_matches = csr_san.value == cert_san.value
+
+        if not (public_key_matches and subject_matches and san_matches):
+            order.status = OrderStatus.INVALID
+            order.error = ErrorEntity(
+                type="invalidOrder",
+                title="Failed to validate CA csr response",
+                detail="CSR and certificate do not match"
+            )
+            self.database.save_to_db(order)
+            raise VismException(
+                f"CSR and certificate do not match for order "
+                f"{cert_message.order_id}"
+            )
 
         acme_logger.info(
             "Certificate for order %s accepted.", cert_message.order_id

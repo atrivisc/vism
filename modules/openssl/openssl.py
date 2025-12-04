@@ -1,5 +1,7 @@
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL cryptographic module implementation."""
+import glob
+import os
 import re
 
 import shutil
@@ -285,12 +287,21 @@ class OpenSSL(CryptoModule):
             openssl_data.database = self.chroot.read_file(signing_cert.database_path)
             self.database.save_to_db(openssl_data)
 
-        try:
-            x509.load_pem_x509_certificate(output.stdout.encode('utf-8'))
-        except Exception as e:
-            raise GenCertException(f"Failed to generate certificate from csr: {e}") from e
+        files = glob.glob(self.chroot.chroot_dir + '/' + signing_cert.certs_path + "/*")
 
-        return output.stdout
+        try:
+            newest = max(files, key=os.path.getctime)
+            pem = self.chroot.read_file(newest.replace(f"{self.chroot.chroot_dir}/", ""))
+            x509.load_pem_x509_certificate(pem.encode('utf-8'))
+            return pem
+        except Exception as e:
+            module_logger.error(
+                "Failed to generate cert from csr"
+                f"\nrc: {output.returncode}"
+                f"\nstderr: {output.stderr}"
+                f"\nstdout: {output.stdout}\n\n"
+            )
+            raise e
 
     def generate_crl(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate Certificate Revocation List."""
