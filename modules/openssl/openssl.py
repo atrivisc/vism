@@ -1,5 +1,7 @@
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL cryptographic module implementation."""
+import glob
+import os
 import re
 
 import shutil
@@ -118,7 +120,7 @@ class OpenSSL(CryptoModule):
             trim_blocks=True,
             lstrip_blocks=True,
             undefined=StrictUndefined
-        ).render({'certificate': cert.config, 'ca_profile': profile})
+        ).render({'certificate': cert.config, 'ca_profile': profile, 'chroot_dir': self.chroot.chroot_dir})
 
         self.chroot.write_file(cert.config_path, template.encode("utf-8"))
 
@@ -138,6 +140,8 @@ class OpenSSL(CryptoModule):
             self.chroot.write_file(cert.csr_path, cert.csr_pem.encode("utf-8"))
         if cert.crt_pem:
             self.chroot.write_file(cert.cert_path, cert.crt_pem.encode("utf-8"))
+
+        self.chroot.create_folder(cert.certs_path)
 
     def _create_ca_environment(self, cert: OpenSSLCryptoCert):
         """Create CA environment in chroot."""
@@ -193,8 +197,7 @@ class OpenSSL(CryptoModule):
                 f"{self.openssl_path} ca -batch "
                 f"-keyfile {signing_cert.key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path} "
-                f"-out -"
+                f"-in {csr_path}"
             )
             password = signing_cert.config.module_args.key.password
             if password:
@@ -206,8 +209,7 @@ class OpenSSL(CryptoModule):
                 f"-keyform engine "
                 f"-keyfile {signing_cert.pub_key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path} "
-                f"-out -"
+                f"-in {csr_path}"
             )
         else:
             raise GenCertException(f"Invalid engine configured for signing cert {signing_cert.config.name}")
@@ -271,6 +273,7 @@ class OpenSSL(CryptoModule):
         acceptable_rc = [0]
         if signing_cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             acceptable_rc = [139, 0, -11]
+
         if output.returncode not in acceptable_rc:
             self.cleanup()
             raise GenCertException(
@@ -283,7 +286,9 @@ class OpenSSL(CryptoModule):
             openssl_data.database = self.chroot.read_file(signing_cert.database_path)
             self.database.save_to_db(openssl_data)
 
-        return output.stdout
+        newest_cert_file = max(glob.glob(self.chroot.chroot_dir + signing_cert.certs_path + "/*"), key=os.path.getctime)
+
+        return self.chroot.read_file(newest_cert_file.replace(f"{self.chroot.chroot_dir}/", ""))
 
     def generate_crl(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate Certificate Revocation List."""

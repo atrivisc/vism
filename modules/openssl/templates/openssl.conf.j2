@@ -1,6 +1,6 @@
 [ default ]
 ca                      = {{ certificate.name }}
-dir                     = /tmp/{{ certificate.name }}
+dir                     = {{ chroot_dir }}/tmp/{{ certificate.name }}
 
 [ req ]
 {% if ca_profile.req.encrypt_key %}
@@ -87,9 +87,7 @@ private_key     = $dir/$ca.key
 {%- if ca_profile.default_ca.rand_serial == 'yes' -%}
 rand_serial             = yes
 {%- endif -%}
-{%- if ca_profile.default_ca.unique_subject == 'yes' -%}
-unique_subject          = yes
-{%- endif -%}
+unique_subject          = {{ ca_profile.default_ca.unique_subject }}
 default_days            = {{ ca_profile.default_ca.default_days }}
 default_md              = {{ ca_profile.default_ca.default_md }}
 policy                  = {{ ca_profile.default_ca.policy }}

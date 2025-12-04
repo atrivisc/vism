@@ -150,12 +150,12 @@ class Certificate:
             cert_entity = self.ca.database.save_to_db(cert_entity)
             return cert_entity
 
-        if self.db_entity is None or self.db_entity.pkey_pem is None:
+        if self.db_entity is None or not self.db_entity.pkey_pem:
             self.cryptoCert = self.crypto_module.generate_private_key(self.cryptoCert)
             self.save_to_db()
 
         try:
-            if self.db_entity is None or self.db_entity.csr_pem is None:
+            if self.db_entity is None or not self.db_entity.csr_pem:
                 self.cryptoCert = self.crypto_module.generate_csr(self.cryptoCert)
                 self.save_to_db()
         except:
@@ -164,7 +164,7 @@ class Certificate:
             raise
 
         if self.signing_cert is not None:
-            if self.signing_cert.config.externally_managed and (self.config.certificate_pem is None):
+            if self.signing_cert.config.externally_managed and (not self.config.certificate_pem):
                 csr_pem = self.cryptoCert.csr_pem
                 del self.cryptoCert
                 raise VismBreakingException(
@@ -172,7 +172,7 @@ class Certificate:
                     f"Please sign '{self.name}' certificate manually and include the pem in the config."
                     f"\n{csr_pem}"
                 )
-            elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (self.db_entity is None and self.db_entity.crt_pem is None):
+            elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (not self.db_entity and not self.db_entity.crt_pem):
                 self.cryptoCert.crt_pem = self.config.certificate_pem
                 self.save_to_db()
 
