@@ -106,7 +106,12 @@ class RabbitMQ(DataExchange):
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
-            queue = await channel.get_queue(self.config.cert_queue)
+            queue = await channel.declare_queue(
+                name=self.config.cert_queue,
+                passive=True,
+                durable=True,
+                robust=True,
+            )
 
             try:
                 consumer_tag = socket.gethostname()
@@ -128,7 +133,12 @@ class RabbitMQ(DataExchange):
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
 
-            queue = await channel.get_queue(self.config.csr_queue)
+            queue = await channel.declare_queue(
+                name=self.config.cert_queue,
+                passive=True,
+                durable=True,
+                robust=True,
+            )
 
             try:
                 consumer_tag = socket.gethostname()
