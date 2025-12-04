@@ -39,8 +39,8 @@ class RabbitMQ(DataExchange):
         """Clean up RabbitMQ resources."""
         module_logger.debug("Cleaning up RabbitMQ")
         if full:
-            self.validation_module.async_cleanup(full=True)
-            self.encryption_module.async_cleanup(full=True)
+            self.validation_module.cleanup(full=True)
+            self.encryption_module.cleanup(full=True)
 
         conn = await self.connection
         if conn is not None:
