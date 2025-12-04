@@ -6,17 +6,14 @@ import shutil
 import textwrap
 import random
 from dataclasses import dataclass
-from typing import Optional
 
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from jinja2 import Template, StrictUndefined
 
 from modules import module_logger
-from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs, OpenSSLSupportedEngines, GemEngineArgs, \
-    OpenSSLEngineArgs
+from modules.openssl.config import OpenSSLConfig, OpenSSLModuleArgs, OpenSSLSupportedEngines
 from modules.openssl.db import OpenSSLData
-from shared.util import get_needed_libraries
 from vism_ca import VismCADatabase, CertificateConfig, CryptoModule
 from vism_ca.crypto import CryptoCert
 from vism_ca.errors import (
@@ -41,43 +38,43 @@ class OpenSSLCryptoCert(CryptoCert):
 
     @property
     def config_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.conf"
+        return f"tmp/{self.config.name}/{self.config.name}.conf"
 
     @property
     def key_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.key"
+        return f"tmp/{self.config.name}/{self.config.name}.key"
 
     @property
     def pub_key_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}_pub.key"
+        return f"tmp/{self.config.name}/{self.config.name}_pub.key"
 
     @property
     def csr_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.csr"
+        return f"tmp/{self.config.name}/{self.config.name}.csr"
 
     @property
     def cert_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.crt"
+        return f"tmp/{self.config.name}/{self.config.name}.crt"
 
     @property
     def crl_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.crl"
+        return f"tmp/{self.config.name}/{self.config.name}.crl"
 
     @property
     def database_path(self):
-        return f"/tmp/{self.config.name}/{self.config.name}.db"
+        return f"tmp/{self.config.name}/{self.config.name}.db"
 
     @property
     def serial_path(self):
-        return f"/tmp/{self.config.name}/serial"
+        return f"tmp/{self.config.name}/serial"
 
     @property
     def crlnumber_path(self):
-        return f"/tmp/{self.config.name}/crlnumber"
+        return f"tmp/{self.config.name}/crlnumber"
 
     @property
     def certs_path(self):
-        return f"/tmp/{self.config.name}/certs"
+        return f"tmp/{self.config.name}/certs"
     
 
 class OpenSSL(CryptoModule):
@@ -179,37 +176,9 @@ class OpenSSL(CryptoModule):
                 openssl_data.crlnumber.encode("utf-8")
             )
 
-        self.chroot.create_folder(f"/tmp/{cert.config.name}/certs")
+        self.chroot.create_folder(f"{cert.config.name}/certs")
 
         return openssl_data
-
-    def create_chroot_environment(self):
-        """Create chroot environment for OpenSSL."""
-        module_logger.debug(
-            "Generating chroot environment for openssl module."
-        )
-        libraries = get_needed_libraries(self.openssl_path)
-        self.chroot.create_folder("/tmp")
-
-        for library in libraries:
-            self.chroot.copy_file(library)
-
-        self.chroot.copy_file(self.openssl_path)
-
-        if self.config.additional_chroot_dirs:
-            for directory in self.config.additional_chroot_dirs:
-                self.chroot.copy_folder(directory)
-
-        if self.config.additional_chroot_files:
-            for file in self.config.additional_chroot_files:
-                self.chroot.copy_file(file)
-
-        if self.config.additional_chroot_libraries:
-            for file in self.config.additional_chroot_libraries:
-                libraries = get_needed_libraries(file)
-                for library in libraries:
-                    self.chroot.copy_file(library)
-                self.chroot.copy_file(file)
 
     def _build_csr_sign_command(
             self,
@@ -217,7 +186,7 @@ class OpenSSL(CryptoModule):
             module_args: OpenSSLModuleArgs
     ) -> str:
         """Build command for signing a CSR."""
-        csr_path = "/tmp/to_sign.csr"
+        csr_path = "to_sign.csr"
 
         if signing_cert.config.module_args.engine is None:
             command = (
@@ -341,15 +310,13 @@ class OpenSSL(CryptoModule):
                 command += f" -passin pass:{password}"
         elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             command = (
-                f"{self.openssl_path} ca -engine gem -batch "
+                f"echo '{cert.config.module_args.engine_args.pin}' | {self.openssl_path} "
+                f"ca -engine gem -batch "
                 f"-key {cert.key_pem} -keyform engine -keyfile {cert.pub_key_path} "
                 f"-config {cert.config_path} "
                 f"-gencrl "
                 f"-out -"
             )
-            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
-            if engine_args:
-                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
         else:
             self.cleanup()
             raise GenPKEYException(
@@ -399,12 +366,10 @@ class OpenSSL(CryptoModule):
                 command += f" -passin pass:{password}"
         elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             command = (
-                f"{self.openssl_path} req -engine gem -config {cert.config_path} -batch -new "
-                f"-key {cert.key_path} -keyform engine -out /tmp/csr.pem"
+                f"echo '{cert.config.module_args.engine_args.pin}' | {self.openssl_path} "
+                f"req -engine gem -config {cert.config_path} -batch -new "
+                f"-key {cert.key_path} -keyform engine -out {cert.csr_path}"
             )
-            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
-            if engine_args:
-                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
         else:
             self.cleanup()
             raise GenPKEYException(
@@ -420,7 +385,7 @@ class OpenSSL(CryptoModule):
             self.cleanup()
             raise GenCSRException(f"Failed to generate csr: {output.stderr}")
 
-        csr_pem = self.chroot.read_file("/tmp/csr.pem")
+        csr_pem = self.chroot.read_file(f"/{cert.csr_path}")
         cert.csr_pem = csr_pem
 
         self.cleanup()
@@ -446,12 +411,10 @@ class OpenSSL(CryptoModule):
                 command += f" -aes-256-cbc -pass pass:{key_config.password}"
         elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             command = (
-                f"{self.openssl_path} genpkey -engine gem -config {cert.config_path} "
+                f"echo '{cert.config.module_args.engine_args.pin}' | {self.openssl_path} "
+                f"genpkey -engine gem -config {cert.config_path} "
                 f"-algorithm {key_config.algorithm} -out {cert.pub_key_path}"
             )
-            engine_args: Optional[GemEngineArgs] = cert.config.module_args.engine_args
-            if engine_args:
-                self.chroot.write_file(engine_args.pin_file, engine_args.pin.encode("utf-8"))
 
         else:
             self.cleanup()
@@ -564,7 +527,7 @@ class OpenSSL(CryptoModule):
         module_logger.info("Signing csr with '%s'", signing_cert.config.name)
         signing_openssl_data = self._create_ca_environment(signing_cert)
 
-        self.chroot.write_file("/tmp/to_sign.csr", cert.csr_pem.encode("utf-8"))
+        self.chroot.write_file("to_sign.csr", cert.csr_pem.encode("utf-8"))
         command = self._build_csr_sign_command(signing_cert, module_args)
 
         cert_pem = self._execute_ca_sign(command, signing_openssl_data, signing_cert)

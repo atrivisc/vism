@@ -150,7 +150,6 @@ class CryptoModule:
         crypto_module = crypto_module_imports.Module(
             ca.config.security.chroot_base_dir, ca.database
         )
-        crypto_module.create_chroot_environment()
 
         SensitiveDataFilter.SENSITIVE_PATTERNS.update(
             crypto_module_imports.LOGGING_SENSITIVE_PATTERNS

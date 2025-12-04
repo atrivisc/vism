@@ -18,10 +18,8 @@ class Chroot:
     """Chroot environment for isolated file operations."""
 
     def __init__(self, chroot_dir: str):
-        self.chroot_dir = f"{chroot_dir.rstrip(' / ')}/{uuid.uuid4()}"
-        self.unshare_cmd = [
-            'unshare', '-fmuipUCT', '-r', 'chroot', self.chroot_dir
-        ]
+        self.chroot_dir = f"{chroot_dir.rstrip('/')}/{uuid.uuid4()}"
+        self.create_folder("/")
 
     def read_file_bytes(self, path: str) -> bytes:
         """Read file contents as bytes."""
@@ -46,16 +44,18 @@ class Chroot:
     def delete_folder_contents(self, folder: str):
         """Delete all contents of a folder."""
         shared_logger.debug("Deleting folder contents: %s", f"{self.chroot_dir}/{folder.lstrip("/")}")
-        shutil.rmtree(
-            f'{self.chroot_dir}/{folder.lstrip("/")}',
-            ignore_errors=True
-        )
+        if os.path.exists(f'{self.chroot_dir}/{folder.lstrip("/")}'):
+            shutil.rmtree(
+                f'{self.chroot_dir}/{folder.lstrip("/")}',
+                ignore_errors=True
+            )
         self.create_folder(folder)
 
     def delete_folder(self, folder: str):
         """Delete a folder."""
         shared_logger.debug("Deleting folder: %s", f"{self.chroot_dir}/{folder.lstrip("/")}")
-        shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}', ignore_errors=True)
+        if os.path.exists(f'{self.chroot_dir}/{folder.lstrip("/")}'):
+            shutil.rmtree(f'{self.chroot_dir}/{folder.lstrip("/")}', ignore_errors=True)
 
     def create_folder(self, folder: str):
         """Create a folder."""
@@ -129,7 +129,7 @@ class Chroot:
         """Run a command in the chroot environment."""
         shared_logger.debug("Running command: %s", command)
         result = subprocess.run(
-            self.unshare_cmd + command.split(" "),
+            command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             input=stdin,
@@ -137,5 +137,7 @@ class Chroot:
             env=environment,
             check=False,
             timeout=60,
+            cwd=self.chroot_dir,
+            shell=True
         )
         return result

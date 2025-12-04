@@ -5,11 +5,11 @@ import asyncio
 import base64
 import json
 import socket
-from typing import Optional
 
 import aio_pika
 from aio_pika import Message
 from aio_pika.abc import AbstractIncomingMessage, AbstractRobustConnection
+from aio_pika.pool import Pool
 from aiormq import AMQPConnectionError
 
 from modules import module_logger
@@ -33,7 +33,12 @@ class RabbitMQ(DataExchange):
     def __init__(self, *args, **kwargs):
         module_logger.debug("Initializing RabbitMQ module")
         super().__init__(*args, **kwargs)
-        self._connection: Optional[aio_pika.Connection] = None
+        self.connection_pool: Pool = Pool(self.get_connection, max_size=20)
+        self.channel_pool: Pool = Pool(self.get_channel, max_size=100)
+
+    async def get_channel(self) -> aio_pika.Channel:
+        async with self.connection_pool.acquire() as connection:
+            return await connection.channel()
 
     async def cleanup(self, full: bool = False):
         """Clean up RabbitMQ resources."""
@@ -41,12 +46,6 @@ class RabbitMQ(DataExchange):
         if full:
             self.validation_module.cleanup(full=True)
             self.encryption_module.cleanup(full=True)
-
-        conn = await self.connection
-        if conn is not None:
-            if not conn.is_closed:
-                await conn.close()
-            self._connection = None
 
     async def send_message(
         self, message: DataExchangeMessage, exchange: str,
@@ -60,8 +59,7 @@ class RabbitMQ(DataExchange):
         data_json = message.to_json().encode("utf-8")
         message_signature = self.validation_module.sign(data_json)
 
-        connection = await self.connection
-        async with connection.channel(on_return_raises=True) as channel:
+        async with self.channel_pool.acquire() as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
 
@@ -101,8 +99,7 @@ class RabbitMQ(DataExchange):
             "Starting listening for messages from RabbitMQ queue '%s'",
             self.config.cert_queue
         )
-        connection = await self.connection
-        async with connection.channel(on_return_raises=True) as channel:
+        async with self.channel_pool.acquire() as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
@@ -128,8 +125,7 @@ class RabbitMQ(DataExchange):
             "Starting listening for messages from RabbitMQ queue '%s'",
             self.config.csr_queue
         )
-        connection = await self.connection
-        async with connection.channel(on_return_raises=True) as channel:
+        async with self.channel_pool.acquire() as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
 
@@ -204,19 +200,16 @@ class RabbitMQ(DataExchange):
 
             return None
 
-    @property
-    async def connection(self) -> AbstractRobustConnection:
-        if self._connection is None:
-            try:
-                self._connection = await aio_pika.connect_robust(
-                    host=self.config.host,
-                    port=self.config.port,
-                    login=self.config.user,
-                    password=self.config.password,
-                    virtualhost=self.config.vhost,
-                )
-            except AMQPConnectionError as e:
-                raise RabbitMQError(
-                    f"Failed to connect to RabbitMQ: {e}"
-                ) from e
-        return self._connection
+    async def get_connection(self) -> AbstractRobustConnection:
+        try:
+            return await aio_pika.connect_robust(
+                host=self.config.host,
+                port=self.config.port,
+                login=self.config.user,
+                password=self.config.password,
+                virtualhost=self.config.vhost,
+            )
+        except AMQPConnectionError as e:
+            raise RabbitMQError(
+                f"Failed to connect to RabbitMQ: {e}"
+            ) from e

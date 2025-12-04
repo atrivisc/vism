@@ -99,13 +99,13 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
 
         ecdh_mechanism = ecdh_mechanisms[-1]
 
-        self.chroot.write_file("/tmp/peer_pub.der", peer_public_key_der)
+        self.chroot.write_file("peer_pub.der", peer_public_key_der)
         result = self.chroot.run_command(
             f"{self.bin} --derive "
             f"--mechanism {ecdh_mechanism.name} "
-            f"-i /tmp/peer_pub.der "
+            f"-i peer_pub.der "
             f"--key-type AES:32 "
-            f"-o /tmp/aes_key.der "
+            f"-o aes_key.der "
             f"{self.to_command_args()}"
         )
 
@@ -120,7 +120,7 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
                 f"\nstderr: {result.stderr}"
             )
 
-        shared_secret = self.chroot.read_file_bytes("/tmp/aes_key.der")
+        shared_secret = self.chroot.read_file_bytes("aes_key.der")
         return shared_secret
 
     def to_command_args(self, args_to_skip: list[str] = None):
@@ -150,7 +150,9 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
         )
         if result.returncode != 0:
             raise PKCS11Error(
-                f"Failed to list mechanisms: {result.stderr}"
+                f"Failed to list mechanisms:"
+                f"\nstderr:{result.stderr}"
+                f"\nstdout:{result.stdout}"
             )
 
         mechanisms: list[PKCS11Mechanism] = []
@@ -188,7 +190,7 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
         """Retrieve public key from PKCS#11 module."""
         result = self.chroot.run_command(
             f"{self.bin} -r --type pubkey --label {self.config.pubkey_label} "
-            f"-o /pubkey.der "
+            f"-o pubkey.der "
             f"{self.to_command_args(args_to_skip=['key_label'])}"
         )
         if result.returncode != 0:
@@ -196,7 +198,7 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
                 f"Failed to load public key: {result.stderr}"
             )
 
-        public_key_der = self.chroot.read_file_bytes("/pubkey.der")
+        public_key_der = self.chroot.read_file_bytes(f"/pubkey.der")
         public_key = serialization.load_der_public_key(public_key_der)
         return public_key
 
@@ -320,7 +322,6 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
     ):
         """Validate signature of data."""
         data_digest = self.get_digest(data, signature_algorithm.algorithm)
-        self.chroot.write_file("/tmp/data.in", data_digest)
 
         if isinstance(signature_algorithm, ec.ECDSA):
             self.chroot.write_file("/tmp/sig.in", signature_der)
@@ -331,9 +332,9 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
             result = self.chroot.run_command(
                 f"{self.bin} --verify "
                 f"--mechanism {method} "
-                f"--signature-file /tmp/sig.in "
+                f"--signature-file tmp/sig.in "
                 f"--signature-format sequence "
-                f"-i /tmp/sig_data.in "
+                f"-i tmp/sig_data.in "
                 f"{self.to_command_args()}"
             )
             if result.returncode != 0:
@@ -366,8 +367,8 @@ class PKCS11Key:  # pylint: disable=too-many-instance-attributes
         result = self.chroot.run_command(
             f"{self.bin} "
             f"--mechanism {method} "
-            f"-i /tmp/data.in "
-            f"-o /tmp/sig.out "
+            f"-i tmp/data.in "
+            f"-o tmp/sig.out "
             f"{self.to_command_args()} -s"
         )
         if result.returncode != 0:
@@ -441,7 +442,7 @@ class PKCS11(Data):
 
     def verify(self, data: bytes, signature_b64u: str) -> None:
         """Verify signature of data."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Verifying signature with '%s'",
             self.validation_key
         )
@@ -467,7 +468,7 @@ class PKCS11(Data):
 
     def decrypt(self, data: bytes) -> bytes:
         """Decrypt data."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Decrypting data with '%s'",
             self.encryption_key
         )
@@ -484,7 +485,7 @@ class PKCS11(Data):
             peer_public_key_pem: str = None
     ) -> bytes:
         """Decrypt data encrypted for a peer."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Decrypting data for peer with '%s'",
             self.encryption_key
         )
@@ -507,7 +508,7 @@ class PKCS11(Data):
 
     def encrypt(self, data: bytes) -> bytes:
         """Encrypt data."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Encrypting data with '%s'",
             self.encryption_key
         )
@@ -524,7 +525,7 @@ class PKCS11(Data):
             peer_public_key_pem: str = None
     ) -> bytes:
         """Encrypt data for a specific peer."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Encrypting data for peer with '%s'",
             self.encryption_key
         )
@@ -569,7 +570,7 @@ class PKCS11(Data):
 
     def sign(self, data: bytes) -> bytes:
         """Sign data."""
-        module_logger.info(
+        module_logger.debug(
             "PKCS11: Signing data with '%s'",
             self.validation_key
         )
@@ -610,21 +611,3 @@ class PKCS11(Data):
         )
         if self.chroot is None:
             self.chroot = Chroot(self.config.chroot_dir)
-
-        bin_libraries = get_needed_libraries(self.config.bin_path)
-        lib_libraries = get_needed_libraries(self.config.lib_path)
-        self.chroot.create_folder("/tmp")
-
-        for library in lib_libraries + bin_libraries:
-            self.chroot.copy_file(library)
-
-        self.chroot.copy_file(self.config.lib_path)
-        self.chroot.copy_file(self.config.bin_path)
-
-        if self.config.additional_chroot_dirs:
-            for directory in self.config.additional_chroot_dirs:
-                self.chroot.copy_folder(directory)
-
-        if self.config.additional_chroot_files:
-            for file in self.config.additional_chroot_files:
-                self.chroot.copy_file(file)

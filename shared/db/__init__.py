@@ -91,7 +91,7 @@ class VismDatabase:
             database=database_config.database
         )
 
-        self.engine = create_engine(self.db_url, echo=False)
+        self.engine = create_engine(self.db_url, echo=False, pool_pre_ping=True)
         self.session_maker = sessionmaker(bind=self.engine, query_cls=RetryingQuery)
         self._create_tables()
 
