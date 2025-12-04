@@ -61,7 +61,7 @@ class AuthzEntity(Base):
     wildcard: Mapped[bool] = mapped_column(Boolean)
     expires: Mapped[str] = mapped_column(
         String,
-        default=(datetime.now() + timedelta(minutes=30)).isoformat(),
+        default=(datetime.now() + timedelta(hours=12)).isoformat(),
         init=False
     )
 

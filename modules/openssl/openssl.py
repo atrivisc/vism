@@ -219,23 +219,35 @@ class OpenSSL(CryptoModule):
         """Build command for signing a CSR."""
         csr_path = "/tmp/to_sign.csr"
 
-        command = (
-            f"{self.openssl_path} ca -batch "
-            f"-keyfile {signing_cert.key_path} "
-            f"-config {signing_cert.config_path} "
-            f"-in {csr_path} "
-            f"-out -"
-        )
+        if signing_cert.config.module_args.engine is None:
+            command = (
+                f"{self.openssl_path} ca -batch "
+                f"-keyfile {signing_cert.key_path} "
+                f"-config {signing_cert.config_path} "
+                f"-in {csr_path} "
+                f"-out -"
+            )
+            password = signing_cert.config.module_args.key.password
+            if password:
+                command += f" -passin pass:{password}"
+        elif signing_cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            command = (
+                f"{self.openssl_path} ca -batch -engine gem "
+                f"-key {signing_cert.key_pem} "
+                f"-keyform engine "
+                f"-keyfile {signing_cert.pub_key_path} "
+                f"-config {signing_cert.config_path} "
+                f"-in {csr_path} "
+                f"-out -"
+            )
+        else:
+            raise GenCertException(f"Invalid engine configured for signing cert {signing_cert.config.name}")
 
         if module_args.days:
             command += f" -days {module_args.days}"
 
         if module_args.extension:
             command += f' -extensions {module_args.extension}'
-
-        key_config = signing_cert.config.module_args.key
-        if key_config.password:
-            command += f" -passin pass:{key_config.password}"
 
         return command
 

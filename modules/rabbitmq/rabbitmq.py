@@ -61,10 +61,10 @@ class RabbitMQ(DataExchange):
         message_signature = self.validation_module.sign(data_json)
 
         connection = await self.connection
-        async with connection.channel() as channel:
+        async with connection.channel(on_return_raises=True) as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
-            await channel.set_qos(prefetch_count=1)
+
             exchange_obj = await channel.get_exchange(exchange)
 
             rabbitmq_message: Message = Message(
@@ -78,10 +78,14 @@ class RabbitMQ(DataExchange):
                 }
             )
 
-            await exchange_obj.publish(
-                message=rabbitmq_message,
-                routing_key=routing_key,
-            )
+            try:
+                await exchange_obj.publish(
+                    message=rabbitmq_message,
+                    routing_key=routing_key,
+                )
+            except Exception as e:
+                module_logger.error(f"Failed to publish message: {e}")
+                raise RuntimeError from e
 
     async def send_cert(self, message: DataExchangeCertMessage):
         """Send certificate message."""
@@ -98,7 +102,7 @@ class RabbitMQ(DataExchange):
             self.config.cert_queue
         )
         connection = await self.connection
-        async with connection.channel() as channel:
+        async with connection.channel(on_return_raises=True) as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
             await channel.set_qos(prefetch_count=1)
@@ -120,10 +124,10 @@ class RabbitMQ(DataExchange):
             self.config.csr_queue
         )
         connection = await self.connection
-        async with connection.channel() as channel:
+        async with connection.channel(on_return_raises=True) as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
-            await channel.set_qos(prefetch_count=1)
+
             queue = await channel.get_queue(self.config.csr_queue)
 
             try:

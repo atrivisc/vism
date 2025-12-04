@@ -67,7 +67,7 @@ class AuthzRouter:
                 )
 
         if (not authz_expired and
-                not challenge_entity.status == ChallengeStatus.VALID):
+                not challenge_entity.status == ChallengeStatus.VALID.value):
             challenge_entity.status = ChallengeStatus.PROCESSING
             challenge_entity = self.controller.database.save_to_db(
                 challenge_entity
@@ -121,6 +121,8 @@ class AuthzRouter:
         authz_deactivated = authz_entity.status == AuthzStatus.DEACTIVATED
         order_invalid = authz_entity.order.status == OrderStatus.INVALID
 
+        authz_expired = False
+        order_expired = False
         if not authz_deactivated and not order_invalid:
             authz_expired = authz_entity.status == AuthzStatus.EXPIRED
             if not authz_expired:
@@ -153,6 +155,8 @@ class AuthzRouter:
         )
 
         response_code = 200
+        if authz_expired or order_expired:
+            response_code = 400
         response = {
             "status": authz_entity.status,
             "expires": authz_entity.expires,
