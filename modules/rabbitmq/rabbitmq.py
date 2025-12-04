@@ -46,6 +46,8 @@ class RabbitMQ(DataExchange):
         if full:
             self.validation_module.cleanup(full=True)
             self.encryption_module.cleanup(full=True)
+            await asyncio.shield(self.channel_pool.close())
+            await asyncio.shield(self.connection_pool.close())
 
     async def send_message(
         self, message: DataExchangeMessage, exchange: str,
