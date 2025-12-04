@@ -134,7 +134,7 @@ class RabbitMQ(DataExchange):
                 await channel.initialize(timeout=30)
 
             queue = await channel.declare_queue(
-                name=self.config.cert_queue,
+                name=self.config.csr_queue,
                 passive=True,
                 durable=True,
                 robust=True,
