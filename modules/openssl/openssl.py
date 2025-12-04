@@ -1,7 +1,5 @@
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """OpenSSL cryptographic module implementation."""
-import glob
-import os
 import re
 
 import shutil
@@ -9,6 +7,7 @@ import textwrap
 import random
 from dataclasses import dataclass
 
+from cryptography import x509
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from jinja2 import Template, StrictUndefined
@@ -197,7 +196,7 @@ class OpenSSL(CryptoModule):
                 f"{self.openssl_path} ca -batch "
                 f"-keyfile {signing_cert.key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path}"
+                f"-in {csr_path} -out -"
             )
             password = signing_cert.config.module_args.key.password
             if password:
@@ -209,7 +208,7 @@ class OpenSSL(CryptoModule):
                 f"-keyform engine "
                 f"-keyfile {signing_cert.pub_key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path}"
+                f"-in {csr_path} -out -"
             )
         else:
             raise GenCertException(f"Invalid engine configured for signing cert {signing_cert.config.name}")
@@ -286,9 +285,12 @@ class OpenSSL(CryptoModule):
             openssl_data.database = self.chroot.read_file(signing_cert.database_path)
             self.database.save_to_db(openssl_data)
 
-        newest_cert_file = max(glob.glob(self.chroot.chroot_dir + signing_cert.certs_path + "/*"), key=os.path.getctime)
+        try:
+            x509.load_pem_x509_certificate(output.stdout.encode('utf-8'))
+        except Exception as e:
+            raise GenCertException(f"Failed to generate certificate from csr: {e}") from e
 
-        return self.chroot.read_file(newest_cert_file.replace(f"{self.chroot.chroot_dir}/", ""))
+        return output.stdout
 
     def generate_crl(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:
         """Generate Certificate Revocation List."""
