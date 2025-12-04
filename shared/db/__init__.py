@@ -19,6 +19,7 @@ from sqlalchemy.orm import (
 )
 from sqlalchemy.engine import URL, create_engine
 from shared.config import DatabaseConfig
+from shared.db.retrying_query import RetryingQuery
 from shared.errors import VismDatabaseException
 from shared import shared_logger
 from shared.data.validation import Data
@@ -91,7 +92,7 @@ class VismDatabase:
         )
 
         self.engine = create_engine(self.db_url, echo=False)
-        self.session_maker = sessionmaker(bind=self.engine)
+        self.session_maker = sessionmaker(bind=self.engine, query_cls=RetryingQuery)
         self._create_tables()
 
     def get(
