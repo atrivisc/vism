@@ -38,7 +38,7 @@ class RabbitMQ(DataExchange):
 
     async def get_channel(self) -> aio_pika.Channel:
         async with self.connection_pool.acquire() as connection:
-            return await connection.channel()
+            return await connection.channel(on_return_raises=True)
 
     async def cleanup(self, full: bool = False):
         """Clean up RabbitMQ resources."""
@@ -104,6 +104,7 @@ class RabbitMQ(DataExchange):
         async with self.channel_pool.acquire() as channel:
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
+
             await channel.set_qos(prefetch_count=1)
             queue = await channel.declare_queue(
                 name=self.config.cert_queue,
@@ -131,6 +132,7 @@ class RabbitMQ(DataExchange):
             if not channel.is_initialized:
                 await channel.initialize(timeout=30)
 
+            await channel.set_qos(prefetch_count=1)
             queue = await channel.declare_queue(
                 name=self.config.csr_queue,
                 passive=True,
