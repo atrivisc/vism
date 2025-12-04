@@ -127,8 +127,7 @@ class AuthzRouter:
             authz_expired = authz_entity.status == AuthzStatus.EXPIRED
             if not authz_expired:
                 authz_expired = (
-                    datetime.fromisoformat(authz_entity.expires) <
-                    datetime.now()
+                    datetime.now() > datetime.fromisoformat(authz_entity.expires)
                 )
                 if authz_expired:
                     authz_entity.status = AuthzStatus.EXPIRED

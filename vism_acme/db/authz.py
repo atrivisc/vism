@@ -49,6 +49,8 @@ class ChallengeType(str, Enum):
 
     HTTP = "http-01"
 
+def get_expiry_time():
+    return (datetime.now() + timedelta(hours=12)).isoformat()
 
 class AuthzEntity(Base):
     """Database entity representing an ACME authorization."""
@@ -61,7 +63,7 @@ class AuthzEntity(Base):
     wildcard: Mapped[bool] = mapped_column(Boolean)
     expires: Mapped[str] = mapped_column(
         String,
-        default=(datetime.now() + timedelta(hours=12)).isoformat(),
+        default_factory=get_expiry_time,
         init=False
     )
 

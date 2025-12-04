@@ -25,6 +25,8 @@ class OrderStatus(str, Enum):
     INVALID = "invalid"
     EXPIRED = "expired"
 
+def get_expiry_time():
+    return (datetime.now() + timedelta(hours=12)).isoformat()
 
 class OrderEntity(Base):
     """Database entity representing an ACME order."""
@@ -42,7 +44,7 @@ class OrderEntity(Base):
     )
     expires: Mapped[str] = mapped_column(
         String,
-        default=(datetime.now() + timedelta(hours=12)).isoformat(),
+        default_factory=get_expiry_time,
         init=False
     )
 
