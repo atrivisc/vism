@@ -299,7 +299,10 @@ class OpenSSL(CryptoModule):
         """Execute CA signing command."""
         output = self.chroot.run_command(command)
 
-        if output.returncode != 0:
+        acceptable_rc = [0]
+        if signing_cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            acceptable_rc = [139, 0, -11]
+        if output.returncode not in acceptable_rc:
             self.cleanup()
             raise GenCertException(
                 f"Failed to generate certificate: {output.stderr}"
