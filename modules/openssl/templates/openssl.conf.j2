@@ -84,9 +84,9 @@ serial          = $dir/serial
 crlnumber       = $dir/crlnumber
 crl             = $dir/$ca.crl
 private_key     = $dir/$ca.key
-{%- if ca_profile.default_ca.rand_serial == 'yes' -%}
+{% if ca_profile.default_ca.rand_serial == 'yes' %}
 rand_serial             = yes
-{%- endif -%}
+{% endif %}
 unique_subject          = {{ ca_profile.default_ca.unique_subject }}
 default_days            = {{ ca_profile.default_ca.default_days }}
 default_md              = {{ ca_profile.default_ca.default_md }}
