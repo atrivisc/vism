@@ -35,7 +35,7 @@ class VismCA(Controller):
                 continue
 
             cert = Certificate(self, cert_config.name)
-            cert.update_crl()
+            await cert.update_crl()
 
     async def run(self):
         """Entrypoint for the CA. Initializes and manages the CA lifecycle."""
@@ -61,7 +61,8 @@ class VismCA(Controller):
             cert = None
             try:
                 cert = Certificate(self, cert_config.name)
-                cert.create()
+                await cert.create()
+                await cert.update_crl()
                 ca_logger.info("Created CA certificate '%s'", cert_config.name)
                 cert.cleanup()
             except Exception as e:

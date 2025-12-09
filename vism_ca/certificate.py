@@ -56,7 +56,7 @@ class Certificate:
         if self.signing_cert:
             self.signing_cert.cleanup()
 
-    def update_crl(self):
+    async def update_crl(self):
         """Update CRL for certificate."""
         if self.db_entity is None:
             raise GenCertException(
@@ -64,15 +64,11 @@ class Certificate:
             )
 
         if self.config.externally_managed:
-            raise GenCRLException(
-                f"Certificate '{self.name}' is externally managed. "
-                f"CRL cannot be updated."
-            )
+            return None
 
         self.cryptoCert = self.crypto_module.generate_crl(self.cryptoCert)
-
-        self.db_entity.crl_pem = self.cryptoCert.crl_pem
-        self.db_entity = self.ca.database.save_to_db(self.db_entity)
+        await self.save_to_db()
+        await self.ca.s3.upload_bytes(self.db_entity.crl_pem.encode("utf-8"), f"crl/{self.config.name}.crl")
 
     def sign_csr(
         self, csr_pem: str, module_args_dict: dict, acme: bool = False
@@ -119,11 +115,19 @@ class Certificate:
 
         return chain
 
-    def create(self) -> 'CertificateEntity':
+    async def create(self) -> 'CertificateEntity':
         """Create certificate."""
         ca_logger.info("Creating certificate '%s'", self.name)
 
-        if self.db_entity and self.db_entity.crt_pem and self.db_entity.crl_pem:
+        if self.config.certificate_pem or (self.db_entity and self.db_entity.crt_pem):
+            crt_pem = self.config.certificate_pem if self.config.certificate_pem else self.db_entity.crt_pem
+            await self.ca.s3.upload_bytes(crt_pem.encode("utf-8"), f"crt/{self.config.name}.crt")
+
+        if self.config.crl_pem or (self.db_entity and self.db_entity.crl_pem):
+            crl_pem = self.config.crl_pem if self.config.crl_pem else self.db_entity.crl_pem
+            await self.ca.s3.upload_bytes(crl_pem.encode("utf-8"), f"crl/{self.config.name}.crl")
+
+        if self.db_entity and self.db_entity.crt_pem:
             ca_logger.info(
                 "Certificate '%s' already exists. Skipping create.", self.name
             )
@@ -152,12 +156,12 @@ class Certificate:
 
         if self.db_entity is None or not self.db_entity.pkey_pem:
             self.cryptoCert = self.crypto_module.generate_private_key(self.cryptoCert)
-            self.save_to_db()
+            await self.save_to_db()
 
         try:
             if self.db_entity is None or not self.db_entity.csr_pem:
                 self.cryptoCert = self.crypto_module.generate_csr(self.cryptoCert)
-                self.save_to_db()
+                await self.save_to_db()
         except:
             self.crypto_module.cleanup(full=True)
             del self.cryptoCert
@@ -174,7 +178,7 @@ class Certificate:
                 )
             elif self.signing_cert.config.externally_managed and self.config.certificate_pem and not (not self.db_entity and not self.db_entity.crt_pem):
                 self.cryptoCert.crt_pem = self.config.certificate_pem
-                self.save_to_db()
+                await self.save_to_db()
 
             if self.signing_cert.db_entity is None:
                 del self.cryptoCert
@@ -207,13 +211,20 @@ class Certificate:
             del self.cryptoCert
             raise
 
-        return self.save_to_db()
+        return await self.save_to_db()
 
-    def save_to_db(self):
+    async def save_to_db(self):
         cert_entity = self.cryptoCert.to_cert_entity()
         if self.db_entity is not None:
             cert_entity.id = self.db_entity.id
             cert_entity.signature = self.db_entity.signature
+            
+        if cert_entity.crt_pem:
+            await self.ca.s3.upload_bytes(self.db_entity.crt_pem.encode("utf-8"), f"crt/{self.config.name}.crt")
+
+        if cert_entity.crl_pem:
+            await self.ca.s3.upload_bytes(self.db_entity.crl_pem.encode("utf-8"), f"crl/{self.config.name}.crl")
+
         cert_entity = self.ca.database.save_to_db(cert_entity)
         self.db_entity = cert_entity
         return cert_entity

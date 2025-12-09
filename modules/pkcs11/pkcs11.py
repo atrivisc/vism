@@ -33,7 +33,6 @@ from modules.pkcs11.errors import (
 from shared.chroot import Chroot
 from shared.data.validation import Data
 from shared.errors import VismException
-from shared.util import get_needed_libraries
 
 logger = logging.getLogger("pkcs11")
 

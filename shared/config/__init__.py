@@ -93,12 +93,25 @@ class Config(metaclass=ABCMeta):
         return cls.__ttl_cache__[cls.__config_file__]
 
 @dataclass
+class S3Config:
+    """Configuration for s3."""
+
+    __path__: ClassVar[str] = "s3"
+
+    bucket: str
+    endpoint: str
+    access_key: str
+    secret_key: str
+    region: str = ""
+
+@dataclass
 class VismConfig(Config):
     """Base configuration class for VISM components."""
 
     security: Security = None
     logging: LoggingConfig = None
     database: DatabaseConfig = None
+    s3: S3Config = None
 
 
 @dataclass

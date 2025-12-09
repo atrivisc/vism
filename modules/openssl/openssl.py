@@ -321,7 +321,7 @@ class OpenSSL(CryptoModule):
                 f"-keyfile {cert.key_path} "
                 f"-config {cert.config_path} "
                 f"-gencrl "
-                f"-out -"
+                f"-out tmp/{cert.config.name}.crl"
             )
             password = cert.config.module_args.key.password
             if password:
@@ -333,7 +333,7 @@ class OpenSSL(CryptoModule):
                 f"-key {cert.key_pem} -keyform engine -keyfile {cert.pub_key_path} "
                 f"-config {cert.config_path} "
                 f"-gencrl "
-                f"-out -"
+                f"-out tmp/{cert.config.name}.crl"
             )
         else:
             self.cleanup()
@@ -359,10 +359,18 @@ class OpenSSL(CryptoModule):
         openssl_data.database = self.chroot.read_file(cert.database_path)
 
         self.database.save_to_db(openssl_data)
+        cert.crl_pem = self.chroot.read_file(f"/tmp/{cert.config.name}.crl")
         self.cleanup()
 
-        cert.crl_pem = output.stdout
-
+        try:
+            x509.load_pem_x509_crl(cert.crl_pem.encode("utf-8"))
+        except Exception as e:
+            raise GenCRLException(
+                f"Failed to generate crl: {e}"
+                f"\nrc: {output.returncode}"
+                f"\nstderr: {output.stderr}"
+                f"\nstdout: {output.stdout}"
+            )
         return cert
 
     def generate_csr(self, cert: OpenSSLCryptoCert) -> OpenSSLCryptoCert:

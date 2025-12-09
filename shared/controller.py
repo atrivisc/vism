@@ -7,6 +7,7 @@ from shared.data.exchange import DataExchange
 from shared.data.validation import Data
 from shared.db import VismDatabase
 from shared.logs import setup_logger, SensitiveDataFilter
+from shared.s3 import AsyncS3Client
 
 
 class Controller:
@@ -22,6 +23,7 @@ class Controller:
         self.encryption_module = self.setup_encryption_module()
         self.validation_module = self.setup_validation_module()
         self.database = self.databaseClass(self.config.database, self.validation_module)
+        self.s3 = AsyncS3Client(self.config.s3)
 
         self._shutdown_event = asyncio.Event()
 
