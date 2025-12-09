@@ -233,16 +233,19 @@ class VismACMEController(Controller):
         from vism_acme.routers import BaseRouter  # pylint: disable=import-outside-toplevel
         from vism_acme.routers import OrderRouter  # pylint: disable=import-outside-toplevel
         from vism_acme.routers import AuthzRouter  # pylint: disable=import-outside-toplevel
+        from vism_acme.routers import PubRouter  # pylint: disable=import-outside-toplevel
 
         base_router = BaseRouter(self)
         account_router = AccountRouter(self)
         order_router = OrderRouter(self)
         authz_router = AuthzRouter(self)
+        pub_router = PubRouter(self)
 
         self.api.include_router(account_router.router)
         self.api.include_router(base_router.router)
         self.api.include_router(order_router.router)
         self.api.include_router(authz_router.router)
+        self.api.include_router(pub_router.router)
 
 
 controller = VismACMEController()

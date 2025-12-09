@@ -6,7 +6,7 @@ from starlette.responses import Response, HTMLResponse
 from vism_acme.acme import VismACMEController
 
 
-class BaseRouter:
+class PubRouter:
     """Router for handling ACME base endpoints like directory."""
 
     def __init__(self, controller: VismACMEController):

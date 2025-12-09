@@ -19,6 +19,7 @@ from .account import AccountRouter
 from .authz import AuthzRouter
 from .base import BaseRouter
 from .order import OrderRouter
+from .pub import PubRouter
 
 __all__ = [
     "AccountRouter",
@@ -26,5 +27,6 @@ __all__ = [
     "BaseRouter",
     "OrderRouter",
     "AcmeRequest",
+    "PubRouter",
     "AcmeRequestState"
 ]
