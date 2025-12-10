@@ -37,17 +37,17 @@ class PubRouter:
         """
 
     async def pub(self):
-        paths = self.controller.s3.list_files("/")
+        paths = await self.controller.s3.list_files("/")
         html = self.build_index_html(paths)
         return HTMLResponse(html)
 
     async def pub_object_type(self, object_type: str):
-        paths = self.controller.s3.list_files(f"{object_type.rstrip('/')}/")
+        paths = await self.controller.s3.list_files(f"{object_type.rstrip('/')}/")
         html = self.build_index_html(paths)
         return HTMLResponse(html)
 
     async def pub_object(self, object_type: str, object_name: str):
-        object_bytes = self.controller.s3.download_bytes(f"{object_type}/{object_name}")
+        object_bytes = await self.controller.s3.download_bytes(f"{object_type}/{object_name}")
         if object_bytes is None:
             return Response(status_code=404)
 
