@@ -198,7 +198,7 @@ class OpenSSL(CryptoModule):
                 f"{self.openssl_path} ca -batch "
                 f"-keyfile {signing_cert.key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path} -out -"
+                f"-in {csr_path}"
             )
             password = signing_cert.config.module_args.key.password
             if password:
@@ -210,7 +210,7 @@ class OpenSSL(CryptoModule):
                 f"-keyform engine "
                 f"-keyfile {signing_cert.pub_key_path} "
                 f"-config {signing_cert.config_path} "
-                f"-in {csr_path} -out -"
+                f"-in {csr_path}"
             )
         else:
             raise GenCertException(f"Invalid engine configured for signing cert {signing_cert.config.name}")
@@ -235,14 +235,31 @@ class OpenSSL(CryptoModule):
         else:
             signing_key_path = signing_cert.key_path
             config_path = signing_cert.config_path
-
-        command = (
-            f"{self.openssl_path} ca -batch "
-            f"-keyfile {signing_key_path} "
-            f"-config {config_path} "
-            f"-in {cert.csr_path} "
-            f"-out -"
-        )
+        
+        if cert.config.module_args.engine is None:
+            command = (
+                f"{self.openssl_path} ca -batch "
+                f"-keyfile {signing_key_path} "
+                f"-config {config_path} "
+                f"-in {cert.csr_path} "
+                f"-out -"
+            )
+            password = cert.config.module_args.key.password
+            if password:
+                command += f" -passin pass:{password}"
+        elif cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            command = (
+                f"echo '{cert.config.module_args.engine_args.pin}' | {self.openssl_path} ca -engine gem -batch "
+                f"-keyfile {signing_key_path} -keyform engine "
+                f"-config {config_path} "
+                f"-in {cert.csr_path} "
+                f"-out -"
+            )
+        else:
+            self.cleanup()
+            raise GenPKEYException(
+                f"Invalid engine value in config: {cert.config.module_args.engine}"
+            )
 
         if cert.config.module_args.days:
             command += f" -days {cert.config.module_args.days}"
@@ -257,8 +274,6 @@ class OpenSSL(CryptoModule):
             cert.config.module_args.key if signing_cert is None
             else signing_cert.config.module_args.key
         )
-        if key_config.password:
-            command += f" -passin pass:{key_config.password}"
 
         return command
 

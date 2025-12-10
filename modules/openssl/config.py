@@ -239,12 +239,13 @@ class OpenSSLModuleArgs(ModuleArgsConfig):
             if self.engine == "gem":
                 self.engine_args = GemEngineArgs(**self.engine_args)
 
-
-
-
 LOGGING_SENSITIVE_PATTERNS = {
     'openssl_pass': {
         'pattern': re.compile(r'(-pass(?:in)?\s(?:pass|env):)\S+'),
         'replace': r'\1[REDACTED]'
+    },
+    'openssl_engine_pass': {
+        'pattern': re.compile(r"echo\s+'.*?'\s+\|"),
+        'replace': r"echo '[REDACTED]' |"
     }
 }
