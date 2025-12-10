@@ -341,16 +341,16 @@ class OpenSSL(CryptoModule):
                 f"Invalid engine value in config: {cert.config.module_args.engine}"
             )
 
+        output = self.chroot.run_command(command)
+        acceptable_rc = [0]
+        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
+            acceptable_rc = [139, 0, -11, 135]
+
         crl_pem = None
         try:
             crl_pem = self.chroot.read_file(f"/tmp/{cert.config.name}.crl")
         except Exception as e:
             module_logger.error(f"Failed to read generated crl file: {e}")
-
-        output = self.chroot.run_command(command)
-        acceptable_rc = [0]
-        if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
-            acceptable_rc = [139, 0, -11, 135]
 
         if output.returncode not in acceptable_rc or crl_pem is None:
             self.cleanup()
