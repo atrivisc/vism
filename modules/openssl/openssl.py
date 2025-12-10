@@ -341,11 +341,18 @@ class OpenSSL(CryptoModule):
                 f"Invalid engine value in config: {cert.config.module_args.engine}"
             )
 
+        crl_pem = None
+        try:
+            crl_pem = self.chroot.read_file(f"/tmp/{cert.config.name}.crl")
+        except Exception as e:
+            pass
+
         output = self.chroot.run_command(command)
         acceptable_rc = [0]
         if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             acceptable_rc = [139, 0, -11, 135]
-        if output.returncode not in acceptable_rc:
+
+        if output.returncode not in acceptable_rc or crl_pem is None:
             self.cleanup()
             raise GenCRLException(
                 f"Failed to generate crl: "
@@ -359,7 +366,7 @@ class OpenSSL(CryptoModule):
         openssl_data.database = self.chroot.read_file(cert.database_path)
 
         self.database.save_to_db(openssl_data)
-        cert.crl_pem = self.chroot.read_file(f"/tmp/{cert.config.name}.crl")
+        cert.crl_pem = crl_pem
         self.cleanup()
 
         try:
