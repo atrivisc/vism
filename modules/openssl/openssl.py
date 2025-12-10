@@ -345,7 +345,7 @@ class OpenSSL(CryptoModule):
         try:
             crl_pem = self.chroot.read_file(f"/tmp/{cert.config.name}.crl")
         except Exception as e:
-            pass
+            module_logger.error(f"Failed to read generated crl file: {e}")
 
         output = self.chroot.run_command(command)
         acceptable_rc = [0]
