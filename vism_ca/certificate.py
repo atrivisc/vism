@@ -220,10 +220,10 @@ class Certificate:
             cert_entity.signature = self.db_entity.signature
             
         if cert_entity.crt_pem is not None:
-            await self.ca.s3.upload_bytes(self.db_entity.crt_pem.encode("utf-8"), f"crt/{self.config.name}.crt")
+            await self.ca.s3.upload_bytes(cert_entity.crt_pem.encode("utf-8"), f"crt/{self.config.name}.crt")
 
         if cert_entity.crl_pem is not None:
-            await self.ca.s3.upload_bytes(self.db_entity.crl_pem.encode("utf-8"), f"crl/{self.config.name}.crl")
+            await self.ca.s3.upload_bytes(cert_entity.crl_pem.encode("utf-8"), f"crl/{self.config.name}.crl")
 
         cert_entity = self.ca.database.save_to_db(cert_entity)
         self.db_entity = cert_entity
