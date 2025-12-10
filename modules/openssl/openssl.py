@@ -273,7 +273,7 @@ class OpenSSL(CryptoModule):
 
         acceptable_rc = [0]
         if signing_cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
-            acceptable_rc = [139, 0, -11]
+            acceptable_rc = [139, 0, -11, 135]
 
         if output.returncode not in acceptable_rc:
             self.cleanup()
@@ -344,7 +344,7 @@ class OpenSSL(CryptoModule):
         output = self.chroot.run_command(command)
         acceptable_rc = [0]
         if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
-            acceptable_rc = [139, 0, -11]
+            acceptable_rc = [139, 0, -11, 135]
         if output.returncode not in acceptable_rc:
             self.cleanup()
             raise GenCRLException(
@@ -405,7 +405,7 @@ class OpenSSL(CryptoModule):
         output = self.chroot.run_command(command)
         acceptable_rc = [0]
         if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
-            acceptable_rc = [139, 0, -11]
+            acceptable_rc = [139, 0, -11, 135]
 
         if output.returncode not in acceptable_rc:
             self.cleanup()
@@ -454,7 +454,7 @@ class OpenSSL(CryptoModule):
         output = self.chroot.run_command(command)
         acceptable_rc = [0]
         if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
-            acceptable_rc = [139, 0, -11]
+            acceptable_rc = [139, 0, -11, 135]
 
         if output.returncode not in acceptable_rc:
             self.cleanup()
