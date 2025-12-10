@@ -407,11 +407,21 @@ class OpenSSL(CryptoModule):
         if cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             acceptable_rc = [139, 0, -11, 135]
 
-        if output.returncode not in acceptable_rc:
-            self.cleanup()
-            raise GenCSRException(f"Failed to generate csr: {output.stderr}")
+        csr_pem = None
+        try:
+            csr_pem = self.chroot.read_file(f"/{cert.csr_path}")
+        except Exception as e:
+            pass
 
-        csr_pem = self.chroot.read_file(f"/{cert.csr_path}")
+        if output.returncode not in acceptable_rc or not csr_pem:
+            self.cleanup()
+            raise GenCSRException(
+                f"Failed to generate csr:"
+                f"\nrc: {output.returncode}"
+                f"\nstderr:{output.stderr}"
+                f"\nstdout:{output.stdout}"
+            )
+
         cert.csr_pem = csr_pem
 
         self.cleanup()
