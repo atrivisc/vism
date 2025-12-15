@@ -123,9 +123,8 @@ class JWSMiddleware(BaseHTTPMiddleware): # pylint: disable=too-few-public-method
     @staticmethod
     async def _parse_jws_envelope(request: Request) -> AcmeJWSEnvelope:
         """Parse JWS envelope from request body."""
-        raw = await request.body()
+        envelope_json = await request.json()
         try:
-            envelope_json = json.loads(raw)
             jws_envelope = AcmeJWSEnvelope(
                 encoded_protected=envelope_json.get("protected", None),
                 encoded_payload=envelope_json.get("payload", None),

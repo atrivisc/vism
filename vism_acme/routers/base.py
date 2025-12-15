@@ -1,6 +1,5 @@
 # Licensed under GPL 3: https://www.gnu.org/licenses/gpl-3.0.html
 """Router for ACME base operations."""
-
 from fastapi import APIRouter
 from starlette.responses import JSONResponse, Response
 
@@ -27,7 +26,8 @@ class BaseRouter:
 
     async def directory(self, request: AcmeRequest):
         """Return the ACME directory with service endpoints and metadata."""
-        base = str(request.base_url).rstrip("/")
+        base = request.base_url
+        base = str(base.replace(scheme="https")).rstrip("/")
         dir_obj = {
             "newNonce": f"{base}/new-nonce",
             "newAccount": f"{base}/new-account",
