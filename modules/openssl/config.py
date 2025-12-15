@@ -211,9 +211,9 @@ class OpenSSLConfig(CryptoConfig):
 class OpenSSLKeyConfig:
     """OpenSSL key generation configuration."""
 
-    password: str
     algorithm: str
     bits: int = 4096
+    password: str = None
 
 
 @dataclass
