@@ -205,7 +205,7 @@ class OpenSSL(CryptoModule):
                 command += f" -passin pass:{password}"
         elif signing_cert.config.module_args.engine == OpenSSLSupportedEngines.gem.value:
             command = (
-                f"{self.openssl_path} ca -batch -engine gem "
+                f"echo '{signing_cert.config.module_args.engine_args.pin}' | {self.openssl_path} ca -batch -engine gem "
                 f"-key {signing_cert.key_pem} "
                 f"-keyform engine "
                 f"-keyfile {signing_cert.pub_key_path} "
