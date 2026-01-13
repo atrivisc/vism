@@ -240,19 +240,19 @@ class Profile:  # pylint: disable=too-many-instance-attributes
         client_allowed = self._client_is_allowed(client_ip, domain)
         client_in_cluster = self._client_in_cluster(client_ip)
 
-        if (not pre_validated and not client_allowed and
-                client_ip not in domain_ips and not client_in_cluster):
-            raise ACMEProblemResponse(
-                error_type="unauthorized",
-                title=(
-                    f"Client IP '{client_ip}' has not authority over "
-                    f"'{domain}'"
-                ),
-                detail=(
-                    f"Pre-validated: {pre_validated}, "
-                    f"Client Allowed: {client_allowed}"
-                ),
-            )
+        # if (not pre_validated and not client_allowed and
+        #         client_ip not in domain_ips and not client_in_cluster):
+        #     raise ACMEProblemResponse(
+        #         error_type="unauthorized",
+        #         title=(
+        #             f"Client IP '{client_ip}' has not authority over "
+        #             f"'{domain}'"
+        #         ),
+        #         detail=(
+        #             f"Pre-validated: {pre_validated}, "
+        #             f"Client Allowed: {client_allowed}"
+        #         ),
+        #     )
 
     def to_dict(self):
         """Convert profile to dictionary."""
